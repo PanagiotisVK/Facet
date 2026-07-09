@@ -41,6 +41,7 @@
   .chips { display: flex; flex-wrap: wrap; gap: 9px; }
   .genre-search { width: 100%; padding: 11px 14px; border-radius: 14px; border: 1.5px solid #2a2740; background: var(--bg2); color: var(--text); font-size: 14px; outline: none; margin-bottom: 12px; }
   .genre-search:focus { border-color: var(--accent); }
+  .show-all-btn { background: transparent; border: 0; color: var(--accent); font-weight: 700; font-size: 13px; cursor: pointer; padding: 8px 2px; margin-top: 4px; }
   .chip { padding: 10px 15px; border-radius: 22px; background: var(--card); border: 1.5px solid transparent; color: var(--text); cursor: pointer; font-size: 14px; font-weight: 600; line-height: 1; transition: transform .14s cubic-bezier(.2,1.5,.4,1), border-color .15s, background .15s, padding .15s, font-size .15s, box-shadow .15s; }
   .chip:active { transform: scale(.92); }
   .chip.on { border-color: var(--accent); background: rgba(124,92,255,.22); }
@@ -164,9 +165,10 @@
       <h1>What do you love?</h1>
       <p class="lead">Pick a few genres and artists you already enjoy. Facet uses them as a launch pad — then follows your taste outward with every swipe.</p>
       <div class="section-label">Genres — tap once to pick, tap again to weight it bigger (up to 🔥🔥🔥)</div>
-      <input id="genreSearch" class="genre-search" placeholder="🔍 Search genres (e.g. afro, house, jazz)…" autocomplete="off" />
+      <input id="genreSearch" class="genre-search" placeholder="🔍 Search genres (e.g. afro, euro summer, jazz)…" autocomplete="off" />
       <div class="chips" id="genreChips"></div>
-      <div class="section-label">Artists you love</div>
+      <button type="button" id="toggleGenres" class="show-all-btn">Show all genres ▾</button>
+      <div class="section-label">Artists you love — add them, then tap to weight bigger (tap 4× to remove)</div>
       <div class="artist-row">
         <input id="artistInput" placeholder="Type an artist and hit +" autocomplete="off" />
         <button id="addArtist">+</button>
@@ -272,9 +274,14 @@ const GENRE_ANCHORS = {
   "Country": ["Chris Stapleton","Zach Bryan"], "Folk": ["Bon Iver","Fleet Foxes"],
   "Bluegrass": ["Billy Strings","Alison Krauss"], "Americana": ["Jason Isbell","The Lumineers"],
   "Classical": ["Ludovico Einaudi","Max Richter"], "Opera": ["Luciano Pavarotti","Andrea Bocelli"],
-  "Soundtrack": ["Hans Zimmer","John Williams"]
+  "Soundtrack": ["Hans Zimmer","John Williams"],
+  "Euro Summer": ["Meduza","ANOTR"], "Corridos Tumbados": ["Peso Pluma","Natanael Cano"],
+  "Jersey Club": ["DJ Sliink","Cookiee Kawaii"]
 };
 const GENRES = Object.keys(GENRE_ANCHORS).sort(); // alphabetized for easy scanning
+// Broad genres shown by default so the initial list isn't overwhelming; the rest
+// (incl. specific/vibe ones like Euro Summer) appear via search or "Show all".
+const POPULAR_GENRES = new Set(["Pop", "Hip-Hop/Rap", "R&B/Soul", "Rock", "Indie", "Alternative", "Electronic", "House", "Techno", "Jazz", "Country", "Folk", "Metal", "Latin", "K-Pop", "Afrobeats", "Classical", "Reggae"]);
 
 const audio = new Audio();
 audio.preload = "auto";
@@ -452,7 +459,7 @@ function load() {
 
 /* ---------- Onboarding UI ---------- */
 const seedGenres = new Map();   // genre -> weight (1..3); bigger = seeds harder
-const seedArtists = [];
+const seedArtists = new Map();   // artist name -> weight (1..3), same weighting as genres
 const genreChips = document.getElementById("genreChips");
 const artistChips = document.getElementById("artistChips");
 const startBtn = document.getElementById("startBtn");
@@ -475,29 +482,45 @@ GENRES.forEach(g => {
   };
   genreChips.appendChild(el);
 });
-// Filter genres as you type (keeps the big list findable)
-document.getElementById("genreSearch").addEventListener("input", e => {
-  const q = e.target.value.trim().toLowerCase();
+// Show broad genres by default; reveal the rest via search or "Show all".
+let showAllGenres = false;
+function refreshGenreVisibility() {
+  const q = document.getElementById("genreSearch").value.trim().toLowerCase();
   genreChips.querySelectorAll(".chip").forEach(el => {
-    el.style.display = (!q || el.dataset.g.toLowerCase().includes(q)) ? "" : "none";
+    const g = el.dataset.g;
+    const base = q ? g.toLowerCase().includes(q) : (showAllGenres || POPULAR_GENRES.has(g));
+    el.style.display = (base || seedGenres.has(g)) ? "" : "none"; // always show a picked genre
   });
-});
+}
+document.getElementById("genreSearch").addEventListener("input", refreshGenreVisibility);
+document.getElementById("toggleGenres").onclick = () => {
+  showAllGenres = !showAllGenres;
+  document.getElementById("toggleGenres").textContent = showAllGenres ? "Show fewer genres ▴" : "Show all genres ▾";
+  refreshGenreVisibility();
+};
+refreshGenreVisibility(); // start with just the popular set
 document.getElementById("addArtist").onclick = addArtistChip;
 document.getElementById("artistInput").addEventListener("keydown", e => { if (e.key === "Enter") addArtistChip(); });
 function addArtistChip() {
   const input = document.getElementById("artistInput");
   const val = input.value.trim();
-  if (val && !seedArtists.includes(val)) {
-    seedArtists.push(val);
+  if (val && !seedArtists.has(val)) {
+    seedArtists.set(val, 1);
     const el = document.createElement("div");
-    el.className = "chip on"; el.textContent = val + "  ✕";
-    el.onclick = () => { const i = seedArtists.indexOf(val); if (i >= 0) seedArtists.splice(i, 1); el.remove(); updateStart(); };
+    el.className = "chip";
+    renderChip(el, val, 1);                 // same weighted bubble as genres
+    el.onclick = () => {
+      let w = (seedArtists.get(val) || 0) + 1;
+      if (w > 3) { seedArtists.delete(val); el.remove(); }  // 4th tap removes it
+      else { seedArtists.set(val, w); renderChip(el, val, w); }
+      updateStart();
+    };
     artistChips.appendChild(el);
   }
   input.value = ""; updateStart();
 }
 function updateStart() {
-  const n = seedGenres.size + seedArtists.length;
+  const n = seedGenres.size + seedArtists.size;
   startBtn.disabled = n < 2;
   startBtn.textContent = n < 2 ? "Pick at least 2 to start" : "Start discovering →";
 }
@@ -506,12 +529,12 @@ startBtn.onclick = async () => {
   startBtn.disabled = true; startBtn.textContent = "Building your radar…";
   document.getElementById("nav").style.display = "flex";
   showScreen("discover");
-  state.seedLabels = [...seedGenres.keys(), ...seedArtists];
+  state.seedLabels = [...seedGenres.keys(), ...seedArtists.keys()];
 
-  // register artist seeds (expand via related)
-  for (const name of seedArtists) {
+  // register artist seeds (weighted, expand via related)
+  for (const [name, w] of seedArtists) {
     const a = await searchArtist(name);
-    if (a) ensureArtist(a.id, a.name, 3, { origin: "seed" });
+    if (a) ensureArtist(a.id, a.name, 2.5 * w, { origin: "seed" }); // weight scales seeding
   }
   // register genre seeds via anchor artists (weighted), then expand through the graph
   for (const [g, w] of seedGenres) {
