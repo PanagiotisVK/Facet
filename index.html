@@ -138,6 +138,12 @@
   .insights { background: linear-gradient(135deg, rgba(124,92,255,.14), rgba(255,92,147,.10)); border-radius: 16px; padding: 14px 16px; margin: 0 4px 16px; }
   .insights .lbl { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
   .insights .val { font-size: 15px; font-weight: 700; margin-top: 4px; line-height: 1.4; }
+  /* Genre "playlists" — click a bucket to filter your finds */
+  .finds-genres { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 4px 14px; }
+  .gchip { background: var(--card); border: 1.5px solid transparent; color: var(--text); font-weight: 700; font-size: 13px; padding: 8px 13px; border-radius: 16px; cursor: pointer; transition: transform .08s, border-color .15s, background .15s; }
+  .gchip:active { transform: scale(.94); }
+  .gchip .c { color: var(--muted); font-weight: 600; margin-left: 5px; }
+  .gchip.on { border-color: var(--accent); background: rgba(124,92,255,.22); }
   .find { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; background: var(--card); border-radius: 16px; padding: 10px; margin-bottom: 10px; }
   .find img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex-shrink:0; }
   .find .fmeta { flex: 1; min-width: 0; }
@@ -232,6 +238,7 @@
         <div class="lbl">Your taste is leaning toward</div>
         <div class="val" id="insightsVal"></div>
       </div>
+      <div class="finds-genres" id="findsGenres"></div>
       <div id="findsList"></div>
       <button class="startover" id="startOver">Start over (clear my taste)</button>
     </section>
@@ -353,7 +360,7 @@ function ensureArtist(id, name, score, meta) {
 /* ---------- Track normalization ---------- */
 function normalize(t, reason) {
   const cover = t.album && (t.album.cover_big || t.album.cover_medium || t.album.cover);
-  return { id: t.id, title: t.title, artist: t.artist.name, artistId: t.artist.id, cover, preview: t.preview, link: t.link, rank: t.rank || 0, reason };
+  return { id: t.id, title: t.title, artist: t.artist.name, artistId: t.artist.id, cover, preview: t.preview, link: t.link, rank: t.rank || 0, albumId: t.album && t.album.id, reason };
 }
 function queueTracks(list, reason) {
   let n = 0;
@@ -583,6 +590,7 @@ function showScreen(name) {
   document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("active", b.dataset.screen === name));
   const footer = document.querySelector("footer");
   if (footer) footer.style.display = name === "discover" ? "none" : ""; // give the dock room on the swipe screen
+  if (name === "finds") updateFinds(); // refresh buckets + kick off genre lookups
   if (name !== "discover") audio.pause();
   else if (state.current) safePlay();
 }
@@ -980,12 +988,20 @@ function attachDrag(card) {
   card.addEventListener("pointercancel", end);
 }
 
-/* ---------- Finds + insights ---------- */
+/* ---------- Finds + insights + genre playlists ---------- */
+let findsFilter = null;          // null = show all, else a genre name
+const albumGenreCache = {};      // albumId -> genre name
+let fetchingGenres = false;
+
 function updateFinds() {
   document.getElementById("findsCount").textContent = state.liked.length;
   const list = document.getElementById("findsList");
   const insights = document.getElementById("insights");
-  if (!state.liked.length) { list.innerHTML = '<div class="empty-finds">No finds yet.<br>Swipe right on something you love.</div>'; insights.style.display = "none"; return; }
+  const gwrap = document.getElementById("findsGenres");
+  if (!state.liked.length) {
+    list.innerHTML = '<div class="empty-finds">No finds yet.<br>Swipe right on something you love.</div>';
+    insights.style.display = "none"; gwrap.innerHTML = ""; return;
+  }
 
   // insights: top artists among your finds
   const counts = {};
@@ -994,8 +1010,26 @@ function updateFinds() {
   insights.style.display = "block";
   document.getElementById("insightsVal").textContent = top.join(" · ");
 
+  // genre buckets = clickable playlists
+  const byGenre = {};
+  state.liked.forEach(t => { if (t.genre) (byGenre[t.genre] = byGenre[t.genre] || []).push(t); });
+  const genres = Object.keys(byGenre).sort((a, b) => byGenre[b].length - byGenre[a].length);
+  if (findsFilter && !byGenre[findsFilter]) findsFilter = null;
+  gwrap.innerHTML = "";
+  const mkChip = (label, count, key) => {
+    const c = document.createElement("div");
+    c.className = "gchip" + (findsFilter === key ? " on" : "");
+    c.innerHTML = esc(label) + '<span class="c">' + count + "</span>";
+    c.onclick = () => { findsFilter = key; updateFinds(); };
+    gwrap.appendChild(c);
+  };
+  mkChip("All", state.liked.length, null);
+  genres.forEach(g => mkChip(g, byGenre[g].length, g));
+
+  // list (filtered by the selected genre playlist)
+  const shown = findsFilter ? byGenre[findsFilter] : state.liked;
   list.innerHTML = "";
-  [...state.liked].reverse().forEach(t => {
+  [...shown].reverse().forEach(t => {
     const row = document.createElement("div");
     row.className = "find";
     const q = encodeURIComponent(t.artist + " " + t.title); // open/find the song in the user's app
@@ -1015,6 +1049,37 @@ function updateFinds() {
     row.querySelector(".mini").onclick = () => { audioToken++; audio.onloadedmetadata = null; audio.loop = false; audio.src = t.preview; audio.currentTime = 0; audio.play(); };
     list.appendChild(row);
   });
+
+  maybeFetchGenres(); // fill in any missing genres in the background, then re-render
+}
+
+// Look up each loved song's genre (via its Deezer album) so we can bucket them.
+async function ensureGenre(t) {
+  if (t.genre) return;
+  let albumId = t.albumId;
+  if (!albumId) { // older finds saved before we captured album id → find it by search
+    const s = await deezer("search", { q: t.artist + " " + t.title, limit: 1 });
+    albumId = s && s.data && s.data[0] && s.data[0].album && s.data[0].album.id;
+    if (albumId) t.albumId = albumId;
+  }
+  let genre = "Mixed";
+  if (albumId) {
+    if (albumGenreCache[albumId]) genre = albumGenreCache[albumId];
+    else {
+      const al = await deezer("album/" + albumId, {});
+      genre = (al && al.genres && al.genres.data && al.genres.data[0] && al.genres.data[0].name) || "Mixed";
+      albumGenreCache[albumId] = genre;
+    }
+  }
+  t.genre = genre;
+}
+function maybeFetchGenres() {
+  if (fetchingGenres) return;
+  const missing = state.liked.filter(t => !t.genre);
+  if (!missing.length) return;
+  fetchingGenres = true;
+  Promise.all(missing.slice(0, 25).map(t => ensureGenre(t).catch(() => { t.genre = "Mixed"; })))
+    .then(() => { fetchingGenres = false; save(); updateFinds(); });
 }
 document.getElementById("startOver").onclick = () => {
   try { localStorage.removeItem(LS_KEY); } catch (e) {}
