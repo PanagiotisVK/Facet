@@ -108,8 +108,14 @@
   .advbar { display: flex; gap: 4px; background: var(--card); border-radius: 14px; padding: 4px; margin: 2px 0 4px; }
   .advbar button { flex: 1; border: 0; background: transparent; color: var(--muted); font-weight: 700; font-size: 12px; padding: 8px 4px; border-radius: 10px; cursor: pointer; transition: background .15s, color .15s; }
   .advbar button.on { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
+  /* Bottom control dock — blends the player + swipe buttons into one panel */
+  .dock { padding: 10px 12px 6px; margin-top: 4px; background: linear-gradient(to top, rgba(27,24,48,.85), rgba(27,24,48,0)); border-radius: 22px 22px 0 0; }
+  .player { display: flex; align-items: center; gap: 10px; background: var(--card); border-radius: 16px; padding: 7px 12px; margin-bottom: 6px; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+  .playbtn { flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; border: 0; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; font-size: 15px; cursor: pointer; display: grid; place-items: center; transition: transform .1s; }
+  .playbtn:active { transform: scale(.9); }
+  .time { flex-shrink: 0; font-size: 11px; color: var(--muted); min-width: 40px; text-align: right; letter-spacing: .3px; }
   /* Draggable seek bar — scrub to any part of the 30s preview */
-  .seek { position: relative; height: 22px; margin: 2px 4px 0; display: flex; align-items: center; cursor: pointer; touch-action: none; }
+  .seek { position: relative; flex: 1; height: 22px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
   .seek-track { position: absolute; left: 0; right: 0; height: 5px; border-radius: 3px; background: rgba(255,255,255,.12); }
   .seek-fill { position: absolute; left: 0; height: 5px; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--accent2)); width: 0%; }
   .seek-knob { position: absolute; left: 0; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.5); transform: translateX(-50%); }
@@ -187,14 +193,19 @@
       <div class="deck" id="deck">
         <div class="loading" id="deckLoading"><div class="spinner"></div><div>Mapping your taste…</div></div>
       </div>
-      <div class="seek" id="seek"><div class="seek-track"></div><div class="seek-fill" id="seekFill"></div><div class="seek-knob" id="seekKnob"></div></div>
       <div class="burst" id="burst"></div>
-      <div class="hint" id="hint">Swipe right = love · left = not for me · up = already heard</div>
-      <div class="controls">
-        <div class="ctrl-wrap"><button class="ctrl small nope" id="btnNope">✕</button><div class="ctrl-label">NOPE</div></div>
-        <div class="ctrl-wrap"><button class="ctrl small heard" id="btnHeard">✓</button><div class="ctrl-label">HEARD IT</div></div>
-        <div class="ctrl-wrap"><button class="ctrl big love" id="btnLove">♥</button><div class="ctrl-label">LOVE</div></div>
-        <div class="ctrl-wrap"><button class="ctrl small replay" id="btnReplay">↺</button><div class="ctrl-label">REPLAY</div></div>
+      <div class="dock">
+        <div class="player">
+          <button class="playbtn" id="btnPlay" aria-label="Play or pause">⏸</button>
+          <div class="seek" id="seek"><div class="seek-track"></div><div class="seek-fill" id="seekFill"></div><div class="seek-knob" id="seekKnob"></div></div>
+          <div class="time" id="timeLabel">0:00</div>
+        </div>
+        <div class="hint" id="hint">→ love · ← pass · ↑ heard it</div>
+        <div class="controls">
+          <div class="ctrl-wrap"><button class="ctrl small nope" id="btnNope">✕</button><div class="ctrl-label">NOPE</div></div>
+          <div class="ctrl-wrap"><button class="ctrl small heard" id="btnHeard">✓</button><div class="ctrl-label">HEARD IT</div></div>
+          <div class="ctrl-wrap"><button class="ctrl big love" id="btnLove">♥</button><div class="ctrl-label">LOVE</div></div>
+        </div>
       </div>
     </section>
 
@@ -555,6 +566,8 @@ startBtn.onclick = async () => {
 function showScreen(name) {
   document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === name));
   document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("active", b.dataset.screen === name));
+  const footer = document.querySelector("footer");
+  if (footer) footer.style.display = name === "discover" ? "none" : ""; // give the dock room on the swipe screen
   if (name !== "discover") audio.pause();
   else if (state.current) safePlay();
 }
@@ -625,11 +638,19 @@ if (seekEl) {
   seekEl.addEventListener("pointerup", () => { if (scrubbing) { scrubbing = false; safePlay(); } });
   seekEl.addEventListener("pointercancel", () => { scrubbing = false; });
 }
+function fmtTime(s) { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
 audio.addEventListener("timeupdate", () => {
   const prog = document.getElementById("prog");
   if (prog && audio.duration) prog.style.width = (audio.currentTime / audio.duration * 100) + "%";
   if (!scrubbing && audio.duration) updateSeekUI(audio.currentTime / audio.duration);
+  const tl = document.getElementById("timeLabel");
+  if (tl) tl.textContent = fmtTime(audio.currentTime);
 });
+// Play / pause
+function updatePlayIcon() { const b = document.getElementById("btnPlay"); if (b) b.textContent = audio.paused ? "▶" : "⏸"; }
+audio.addEventListener("play", updatePlayIcon);
+audio.addEventListener("pause", updatePlayIcon);
+document.getElementById("btnPlay").onclick = () => { if (audio.paused) safePlay(); else audio.pause(); };
 
 // Analyze a 30s preview's energy → return the start time (sec) of its most
 // energetic sustained moment (usually the hook/drop/chorus). Cross-origin fetch
@@ -746,7 +767,6 @@ function flyOut(dir) {
 document.getElementById("btnLove").onclick = () => decide("love");
 document.getElementById("btnNope").onclick = () => decide("nope");
 document.getElementById("btnHeard").onclick = () => decide("heard");
-document.getElementById("btnReplay").onclick = () => { const h = state.current && hotStarts[state.current.id]; try { audio.currentTime = (h && h > 1.5) ? h : 0; } catch (_) {} safePlay(); };
 
 /* ---------- Adventurousness dial ---------- */
 function applyAdventureUI() {
