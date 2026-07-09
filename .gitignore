@@ -1,0 +1,13 @@
+# Private planning / strategy — keep OUT of the public repo
+PROJECT.md
+
+# Old prototype + local-only files
+prototype.html
+site/
+
+# OS / editor / temp junk
+.DS_Store
+Thumbs.db
+*.log
+_test_*.mp3
+resp.json

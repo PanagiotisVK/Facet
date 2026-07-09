@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Facet — Music Discovery</title>
+<style>
+  :root {
+    --bg: #0c0b12; --bg2: #14121f; --card: #1b1830;
+    --accent: #7c5cff; --accent2: #ff5c93;
+    --love: #23d18b; --nope: #ff5c6c; --heard: #f5a623;
+    --text: #f4f2ff; --muted: #9b96b8;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(1200px 800px at 50% -10%, #241b3f 0%, var(--bg) 55%), var(--bg);
+    color: var(--text); overflow: hidden;
+  }
+  #app { max-width: 480px; margin: 0 auto; height: 100dvh; display: flex; flex-direction: column; position: relative; }
+
+  header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 10px; }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 800; letter-spacing: .5px; }
+  .brand .dot { width: 12px; height: 12px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent2)); box-shadow: 0 0 16px var(--accent); }
+  .brand small { color: var(--muted); font-weight: 600; font-size: 10px; letter-spacing: 1px; }
+  .nav { display: flex; gap: 6px; }
+  .nav button { background: transparent; color: var(--muted); border: 0; font-weight: 700; padding: 8px 12px; border-radius: 20px; cursor: pointer; font-size: 13px; }
+  .nav button.active { color: var(--text); background: rgba(124,92,255,.18); }
+  .badge { display: inline-block; min-width: 18px; text-align: center; background: var(--accent); color: #fff; border-radius: 10px; font-size: 11px; padding: 1px 6px; margin-left: 5px; }
+
+  main { flex: 1; position: relative; overflow: hidden; }
+  .screen { position: absolute; inset: 0; display: none; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  /* Onboarding + Welcome */
+  #onboarding, #welcome { padding: 8px 20px 24px; overflow-y: auto; }
+  #onboarding h1, #welcome h1 { font-size: 26px; margin: 6px 0 4px; }
+  #onboarding p.lead, #welcome p.lead { color: var(--muted); margin: 0 0 18px; line-height: 1.4; }
+  .section-label { font-size: 12px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; margin: 18px 0 10px; font-weight: 700; }
+  .chips { display: flex; flex-wrap: wrap; gap: 9px; }
+  .chip { padding: 10px 15px; border-radius: 22px; background: var(--card); border: 1.5px solid transparent; color: var(--text); cursor: pointer; font-size: 14px; font-weight: 600; line-height: 1; transition: transform .14s cubic-bezier(.2,1.5,.4,1), border-color .15s, background .15s, padding .15s, font-size .15s, box-shadow .15s; }
+  .chip:active { transform: scale(.92); }
+  .chip.on { border-color: var(--accent); background: rgba(124,92,255,.22); }
+  .chip .wt { font-size: .7em; opacity: .9; margin-left: 5px; letter-spacing: 1px; }
+  /* Weighted genre bubbles: tap 1→2→3 grows it, feeding the algorithm harder */
+  .chip.w1 { border-color: var(--accent); background: rgba(124,92,255,.18); }
+  .chip.w2 { border-color: var(--accent); background: rgba(124,92,255,.32); font-size: 16px; padding: 12px 18px; font-weight: 700; }
+  .chip.w3 { border-color: var(--accent2); background: rgba(255,92,147,.34); font-size: 19px; padding: 14px 22px; font-weight: 800; box-shadow: 0 6px 22px rgba(255,92,147,.30); }
+  .artist-row { display: flex; gap: 9px; margin-top: 12px; }
+  .artist-row input { flex: 1; padding: 12px 15px; border-radius: 14px; border: 1.5px solid #2a2740; background: var(--bg2); color: var(--text); font-size: 15px; outline: none; }
+  .artist-row input:focus { border-color: var(--accent); }
+  .artist-row button { padding: 0 18px; border-radius: 14px; border: 0; background: var(--card); color: var(--text); font-weight: 700; cursor: pointer; font-size: 20px; }
+  .start-bar { position: sticky; bottom: 0; padding-top: 14px; }
+  .btn-primary { width: 100%; padding: 16px; border: 0; border-radius: 16px; cursor: pointer; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; font-size: 16px; font-weight: 800; letter-spacing: .3px; box-shadow: 0 10px 30px rgba(124,92,255,.35); }
+  .btn-primary:disabled { opacity: .4; box-shadow: none; cursor: not-allowed; }
+
+  /* Welcome */
+  #welcome { align-items: center; justify-content: center; text-align: center; }
+  .welcome-stat { font-size: 60px; font-weight: 900; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; line-height: 1; }
+  .welcome-artists { color: var(--muted); margin: 14px 0 26px; font-size: 14px; max-width: 300px; }
+
+  /* Discover */
+  #discover { padding: 4px 18px 14px; }
+  .deck { flex: 1; position: relative; margin: 8px 0 6px; }
+  .card { position: absolute; inset: 0; border-radius: 24px; overflow: hidden; background: var(--card); box-shadow: 0 20px 50px rgba(0,0,0,.5); display: flex; flex-direction: column; user-select: none; touch-action: none; will-change: transform; }
+  .card .art { flex: 1; background-size: cover; background-position: center; position: relative; }
+  .card .art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(12,11,18,.96) 6%, rgba(12,11,18,.25) 42%, rgba(12,11,18,0) 62%); }
+  .card .meta { position: absolute; left: 0; right: 0; bottom: 0; padding: 20px 22px; z-index: 2; }
+  .card .reason { display: inline-block; font-size: 11px; letter-spacing: .5px; color: var(--accent); font-weight: 800; margin-bottom: 8px; background: rgba(124,92,255,.15); padding: 5px 11px; border-radius: 12px; }
+  .card .title { font-size: 24px; font-weight: 800; line-height: 1.15; margin: 0 0 3px; }
+  .card .artist { font-size: 16px; color: var(--muted); font-weight: 600; margin: 0; }
+  .card .progress { position: absolute; left: 0; top: 0; height: 4px; width: 0%; z-index: 3; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .tint { position: absolute; inset: 0; z-index: 1; opacity: 0; pointer-events: none; will-change: opacity; }
+  .stamp { position: absolute; top: 24px; font-size: 21px; font-weight: 900; letter-spacing: .3px; padding: 8px 16px; border-radius: 14px; border: 3.5px solid; opacity: 0; z-index: 5; pointer-events: none; white-space: nowrap; background: rgba(12,11,18,.35); will-change: transform, opacity; }
+  .stamp.love { right: 20px; color: var(--love); border-color: var(--love); transform: rotate(12deg) scale(.8); }
+  .stamp.nope { left: 20px; color: var(--nope); border-color: var(--nope); transform: rotate(-12deg) scale(.8); }
+  .stamp.heard { left: 50%; color: var(--heard); border-color: var(--heard); transform: translateX(-50%) scale(.8); }
+  /* Big animated message that pops in the middle of the card on every decision */
+  .burst { position: absolute; left: 0; right: 0; top: 40%; margin: 0 auto; text-align: center; z-index: 30; opacity: 0; pointer-events: none; font-weight: 900; font-size: 34px; letter-spacing: .3px; white-space: nowrap; text-shadow: 0 6px 26px rgba(0,0,0,.9), 0 0 22px rgba(0,0,0,.7); }
+  .burst.show { animation: burstPop .85s cubic-bezier(.2,1.5,.35,1) forwards; }
+  @keyframes burstPop {
+    0%   { opacity: 0; transform: scale(.3) rotate(-8deg); }
+    18%  { opacity: 1; transform: scale(1.22) rotate(4deg); }
+    42%  { transform: scale(.97) rotate(-1deg); }
+    70%  { opacity: 1; transform: scale(1.05) translateY(0); }
+    100% { opacity: 0; transform: scale(1.12) translateY(-14px); }
+  }
+  .besttag { position: absolute; top: 14px; left: 14px; z-index: 4; background: rgba(35,209,139,.92); color: #08110c; font-weight: 800; font-size: 11px; letter-spacing: .4px; padding: 5px 11px; border-radius: 12px; opacity: 0; transform: translateY(-8px); transition: opacity .35s, transform .35s; }
+  .besttag.show { opacity: 1; transform: translateY(0); }
+
+  .controls { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 6px 0 2px; }
+  .ctrl { border: 0; border-radius: 50%; cursor: pointer; display: grid; place-items: center; transition: transform .1s; background: var(--card); color: #fff; }
+  .ctrl:active { transform: scale(.9); }
+  .ctrl.big { width: 68px; height: 68px; font-size: 30px; }
+  .ctrl.small { width: 52px; height: 52px; font-size: 22px; }
+  .ctrl.nope { background: rgba(255,92,108,.16); color: var(--nope); }
+  .ctrl.love { background: rgba(35,209,139,.16); color: var(--love); }
+  .ctrl.heard { background: rgba(245,166,35,.16); color: var(--heard); }
+  .ctrl.replay { background: rgba(124,92,255,.16); color: var(--accent); }
+  .ctrl-label { text-align:center; font-size:10px; color:var(--muted); margin-top:5px; font-weight:700; letter-spacing:.5px; }
+  .ctrl-wrap { display:flex; flex-direction:column; align-items:center; }
+  .hint { text-align: center; color: var(--muted); font-size: 12px; padding: 2px 0 4px; }
+
+  .loading, .empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--muted); text-align:center; padding: 0 30px; }
+  .spinner { width: 44px; height: 44px; border-radius: 50%; border: 4px solid #2a2740; border-top-color: var(--accent); animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Finds */
+  #finds { padding: 4px 16px 20px; overflow-y: auto; }
+  #finds h2 { margin: 8px 4px 4px; font-size: 22px; }
+  #finds .sub { color: var(--muted); margin: 0 4px 14px; font-size: 13px; }
+  .insights { background: linear-gradient(135deg, rgba(124,92,255,.14), rgba(255,92,147,.10)); border-radius: 16px; padding: 14px 16px; margin: 0 4px 16px; }
+  .insights .lbl { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .insights .val { font-size: 15px; font-weight: 700; margin-top: 4px; line-height: 1.4; }
+  .find { display: flex; align-items: center; gap: 12px; background: var(--card); border-radius: 16px; padding: 10px; margin-bottom: 10px; }
+  .find img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex-shrink:0; }
+  .find .fmeta { flex: 1; min-width: 0; }
+  .find .fmeta .n { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .find .fmeta .a { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .find a.open { text-decoration: none; background: rgba(124,92,255,.18); color: var(--accent); font-weight: 700; font-size: 12px; padding: 8px 12px; border-radius: 12px; white-space: nowrap; }
+  .find button.mini { border: 0; background: rgba(255,255,255,.06); color: var(--text); width: 40px; height: 40px; border-radius: 10px; cursor: pointer; font-size: 16px; flex-shrink:0; }
+  .empty-finds { text-align:center; color: var(--muted); padding: 60px 20px; }
+  .startover { display:block; width:100%; margin: 20px 0 0; padding: 12px; background: transparent; border: 1.5px solid #2a2740; color: var(--muted); border-radius: 14px; font-weight: 700; cursor: pointer; }
+  footer { text-align: center; color: #5a5677; font-size: 11px; padding: 6px 0 10px; }
+  .toast { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); background: rgba(27,24,48,.96); border: 1px solid #2a2740; color: var(--text); padding: 10px 16px; border-radius: 14px; font-size: 13px; font-weight: 600; opacity: 0; transition: opacity .3s, transform .3s; z-index: 50; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand"><span class="dot"></span><div>FACET <small>DISCOVERY</small></div></div>
+    <div class="nav" id="nav" style="display:none;">
+      <button data-screen="discover" class="active">Discover</button>
+      <button data-screen="finds">Finds <span class="badge" id="findsCount">0</span></button>
+    </div>
+  </header>
+
+  <main>
+    <!-- WELCOME BACK -->
+    <section class="screen" id="welcome">
+      <h1>Welcome back 👋</h1>
+      <p class="lead">Facet remembers your taste. Let's find you something new.</p>
+      <div class="welcome-stat" id="welcomeStat">0</div>
+      <div style="color:var(--muted);font-weight:700;margin-top:4px;">finds so far</div>
+      <div class="welcome-artists" id="welcomeArtists"></div>
+      <button class="btn-primary" id="resumeBtn" style="max-width:320px;">Resume discovering →</button>
+    </section>
+
+    <!-- ONBOARDING -->
+    <section class="screen" id="onboarding">
+      <h1>What do you love?</h1>
+      <p class="lead">Pick a few genres and artists you already enjoy. Facet uses them as a launch pad — then follows your taste outward with every swipe.</p>
+      <div class="section-label">Genres — tap once to pick, tap again to weight it bigger (up to 🔥🔥🔥)</div>
+      <div class="chips" id="genreChips"></div>
+      <div class="section-label">Artists you love</div>
+      <div class="artist-row">
+        <input id="artistInput" placeholder="Type an artist and hit +" autocomplete="off" />
+        <button id="addArtist">+</button>
+      </div>
+      <div class="chips" id="artistChips" style="margin-top:12px;"></div>
+      <div class="start-bar"><button class="btn-primary" id="startBtn" disabled>Pick at least 2 to start</button></div>
+    </section>
+
+    <!-- DISCOVER -->
+    <section class="screen" id="discover">
+      <div class="deck" id="deck">
+        <div class="loading" id="deckLoading"><div class="spinner"></div><div>Mapping your taste…</div></div>
+      </div>
+      <div class="burst" id="burst"></div>
+      <div class="hint" id="hint">Swipe right = love · left = not for me · up = already heard</div>
+      <div class="controls">
+        <div class="ctrl-wrap"><button class="ctrl small nope" id="btnNope">✕</button><div class="ctrl-label">NOPE</div></div>
+        <div class="ctrl-wrap"><button class="ctrl small heard" id="btnHeard">✓</button><div class="ctrl-label">HEARD IT</div></div>
+        <div class="ctrl-wrap"><button class="ctrl big love" id="btnLove">♥</button><div class="ctrl-label">LOVE</div></div>
+        <div class="ctrl-wrap"><button class="ctrl small replay" id="btnReplay">↺</button><div class="ctrl-label">REPLAY</div></div>
+      </div>
+    </section>
+
+    <!-- FINDS -->
+    <section class="screen" id="finds">
+      <h2>Your Finds</h2>
+      <p class="sub">Songs you loved. Tap ▶ for the preview, or open the full track.</p>
+      <div class="insights" id="insights" style="display:none;">
+        <div class="lbl">Your taste is leaning toward</div>
+        <div class="val" id="insightsVal"></div>
+      </div>
+      <div id="findsList"></div>
+      <button class="startover" id="startOver">Start over (clear my taste)</button>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+  <footer>Discovery graph &amp; previews from Deezer's open API · Facet</footer>
+</div>
+
+<script>
+/* ============================================================
+   FACET — Phase 2
+   Real discovery graph (related artists), 30-sec previews,
+   persistent taste, "why this pick", smart exploration.
+   Data: Deezer open API via JSONP. No server, no login, no key.
+   ============================================================ */
+
+const LS_KEY = "sonar_profile_v2";
+
+const state = {
+  artists: {},          // id -> {id,name,score,origin,related,relatedFetched,topPulled,exhausted,genreSeed,genreName}
+  disliked: new Set(),  // artist names to avoid
+  liked: [],            // loved tracks (normalized)
+  knownIds: new Set(),  // track ids already seen/queued
+  knownKeys: new Set(), // "title|artist" already seen (kills near-dupes)
+  queue: [],
+  current: null,
+  refilling: false,
+  exploreBoost: 0,      // when >0, reach further out in the graph
+  seedLabels: [],       // for display
+};
+
+// Each genre seeds from iconic "anchor" artists, then the related-artist graph
+// expands outward into the real genre — far better than keyword search.
+// The genre chip list is derived from these keys (one source of truth).
+const GENRE_ANCHORS = {
+  "Pop": ["Dua Lipa","The Weeknd"], "Indie": ["Tame Impala","The Strokes"],
+  "Dream Pop": ["Beach House","Cigarettes After Sex"], "Bedroom Pop": ["Clairo","Rex Orange County"],
+  "Hyperpop": ["100 gecs","Charli xcx"], "Synthwave": ["The Midnight","Gunship"],
+  "City Pop": ["Mariya Takeuchi","Tatsuro Yamashita"],
+  "Hip-Hop/Rap": ["Kendrick Lamar","Drake"], "Trap": ["Travis Scott","Future"],
+  "Drill": ["Central Cee","Pop Smoke"], "Grime": ["Skepta","Stormzy"],
+  "Phonk": ["Kordhell","Ghostface Playa"], "Lo-Fi": ["Nujabes","Jinsang"],
+  "Boom Bap": ["J Dilla","Nas"],
+  "R&B/Soul": ["SZA","Frank Ocean"], "Neo-Soul": ["Erykah Badu","D'Angelo"],
+  "Motown": ["The Temptations","Stevie Wonder"], "Funk": ["Vulfpeck","Cory Wong"],
+  "Disco": ["Chic","Donna Summer"], "Gospel": ["Kirk Franklin","Fred Hammond"],
+  "Rock": ["Foo Fighters","Arctic Monkeys"], "Alternative": ["Radiohead","The 1975"],
+  "Punk": ["Green Day","IDLES"], "Metal": ["Metallica","Gojira"],
+  "Grunge": ["Nirvana","Soundgarden"], "Emo": ["My Chemical Romance","Paramore"],
+  "Post-Punk": ["Joy Division","Interpol"], "Post-Rock": ["Explosions in the Sky","Mogwai"],
+  "Shoegaze": ["Slowdive","My Bloody Valentine"], "Psychedelic": ["King Gizzard & The Lizard Wizard","Pink Floyd"],
+  "Math Rock": ["American Football","tricot"],
+  "Electronic": ["ODESZA","Flume"], "House": ["Disclosure","Fisher"],
+  "Techno": ["Charlotte de Witte","Boris Brejcha"], "Trance": ["Armin van Buuren","Above & Beyond"],
+  "EDM": ["Martin Garrix","Zedd"], "Dubstep": ["Skrillex","Excision"],
+  "Drum & Bass": ["Sub Focus","Netsky"], "Ambient": ["Brian Eno","Tycho"],
+  "Afrobeats": ["Burna Boy","Wizkid"], "Amapiano": ["Kabza De Small","Tyler ICU"],
+  "K-Pop": ["BTS","NewJeans"], "J-Pop": ["YOASOBI","Kenshi Yonezu"],
+  "J-Rock": ["ONE OK ROCK","RADWIMPS"], "Latin": ["Bad Bunny","Rosalía"],
+  "Reggaeton": ["Daddy Yankee","J Balvin"], "Dancehall": ["Sean Paul","Popcaan"],
+  "Reggae": ["Bob Marley","Chronixx"], "Salsa": ["Marc Anthony","Héctor Lavoe"],
+  "Bossa Nova": ["João Gilberto","Antônio Carlos Jobim"], "Flamenco": ["Paco de Lucía","Vicente Amigo"],
+  "Jazz": ["Miles Davis","Robert Glasper"], "Blues": ["B.B. King","Gary Clark Jr."],
+  "Country": ["Chris Stapleton","Zach Bryan"], "Folk": ["Bon Iver","Fleet Foxes"],
+  "Bluegrass": ["Billy Strings","Alison Krauss"], "Americana": ["Jason Isbell","The Lumineers"],
+  "Classical": ["Ludovico Einaudi","Max Richter"], "Opera": ["Luciano Pavarotti","Andrea Bocelli"],
+  "Soundtrack": ["Hans Zimmer","John Williams"]
+};
+const GENRES = Object.keys(GENRE_ANCHORS);
+
+const audio = new Audio();
+audio.preload = "auto";
+let audioToken = 0;                 // guards against stale seeks when cards change fast
+const hotStarts = {};               // trackId -> seconds to jump to ("best part")
+const hotPending = new Set();
+let _audioCtx = null;
+function getCtx() { if (!_audioCtx) { try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } return _audioCtx; }
+
+/* ---------- Deezer API via JSONP (runs from file:// with no server) ---------- */
+let jsonpId = 0;
+function deezer(path, params) {
+  return new Promise((resolve) => {
+    const cb = "sonar_jp_" + (jsonpId++);
+    const timeout = setTimeout(() => { cleanup(); resolve(null); }, 9000);
+    function cleanup() { clearTimeout(timeout); delete window[cb]; if (script.parentNode) script.parentNode.removeChild(script); }
+    window[cb] = (data) => { cleanup(); resolve(data); };
+    let qs = Object.entries(params || {}).map(([k,v]) => k + "=" + encodeURIComponent(v)).join("&");
+    const url = "https://api.deezer.com/" + path + "?" + qs + (qs ? "&" : "") + "output=jsonp&callback=" + cb;
+    const script = document.createElement("script");
+    script.src = url;
+    script.onerror = () => { cleanup(); resolve(null); };
+    document.body.appendChild(script);
+  });
+}
+async function searchArtist(name) { const d = await deezer("search/artist", { q: name, limit: 1 }); return d && d.data && d.data[0]; }
+async function searchTracks(q, limit) { const d = await deezer("search", { q: q, limit: limit || 20 }); return (d && d.data) || []; }
+async function relatedArtists(id) { const d = await deezer("artist/" + id + "/related", { limit: 8 }); return (d && d.data) || []; }
+async function artistTop(id, limit) { const d = await deezer("artist/" + id + "/top", { limit: limit || 6 }); return (d && d.data) || []; }
+
+/* ---------- Artist graph helpers ---------- */
+function ensureArtist(id, name, score, meta) {
+  if (!id) return null;
+  if (!state.artists[id]) {
+    state.artists[id] = Object.assign({ id, name, score, origin: "related", related: null, relatedFetched: false, topPulled: false, exhausted: false }, meta || {});
+  } else {
+    state.artists[id].score += score * 0.3; // reinforce existing
+    if (meta && meta.origin === "loved") state.artists[id].origin = "loved";
+  }
+  return state.artists[id];
+}
+
+/* ---------- Track normalization ---------- */
+function normalize(t, reason) {
+  const cover = t.album && (t.album.cover_big || t.album.cover_medium || t.album.cover);
+  return { id: t.id, title: t.title, artist: t.artist.name, artistId: t.artist.id, cover, preview: t.preview, link: t.link, reason };
+}
+function queueTracks(list, reason) {
+  let n = 0;
+  for (const t of list) {
+    if (!t || !t.preview || !t.artist) continue;
+    const cover = t.album && (t.album.cover_big || t.album.cover_medium || t.album.cover);
+    if (!cover) continue;
+    if (state.knownIds.has(t.id)) continue;
+    const key = (t.title + "|" + t.artist.name).toLowerCase();
+    if (state.knownKeys.has(key)) continue;
+    if (state.disliked.has(t.artist.name)) continue;
+    state.knownIds.add(t.id); state.knownKeys.add(key);
+    state.queue.push(normalize(t, reason));
+    ensureArtist(t.artist.id, t.artist.name, 0.4); // loving this later can expand it
+    n++;
+  }
+  return n;
+}
+
+/* ---------- The recommendation engine ---------- */
+function pickSource(explore) {
+  const pool = Object.values(state.artists).filter(a => !state.disliked.has(a.name) && !a.exhausted);
+  if (!pool.length) return null;
+  if (explore) { pool.sort((a, b) => a.score - b.score); return pool[Math.floor(Math.random() * Math.min(4, pool.length))]; }
+  const total = pool.reduce((s, a) => s + Math.max(a.score, 0.2), 0);
+  let r = Math.random() * total;
+  for (const a of pool) { r -= Math.max(a.score, 0.2); if (r <= 0) return a; }
+  return pool[0];
+}
+
+async function fetchRelatedInto(a) {
+  if (a.relatedFetched) return;
+  const rel = await relatedArtists(a.id);
+  a.relatedFetched = true;
+  a.related = rel.map(r => r.id);
+  rel.forEach(r => ensureArtist(r.id, r.name, a.score * 0.5, { via: a.name }));
+}
+
+async function refill() {
+  if (state.refilling) return;
+  state.refilling = true;
+  try {
+    let added = 0, attempts = 0;
+    while (added < 6 && attempts < 5) {
+      attempts++;
+      const explore = state.exploreBoost > 0;
+      const S = pickSource(explore);
+      if (!S) break;
+      await fetchRelatedInto(S);
+
+      let targets = [], reasonOverride = null;
+
+      if (explore && S.related && S.related.length) {
+        // reach 2 hops out for genuine novelty
+        const rid = S.related[Math.floor(Math.random() * S.related.length)];
+        const RA = state.artists[rid];
+        if (RA) { await fetchRelatedInto(RA);
+          targets = (RA.related || []).map(id => state.artists[id]).filter(Boolean).filter(a => !a.topPulled).slice(0, 2);
+        }
+        reasonOverride = "Reaching further out…";
+        state.exploreBoost--;
+      } else {
+        targets = (S.related || []).map(id => state.artists[id]).filter(Boolean).filter(a => !a.topPulled).slice(0, 2);
+      }
+
+      if (!targets.length) { S.exhausted = true; continue; }
+
+      for (const T of targets) {
+        const tracks = await artistTop(T.id, 6);
+        T.topPulled = true;
+        let reason = reasonOverride;
+        if (!reason) {
+          if (S.genreName && S.origin === "seed") reason = "Exploring " + S.genreName;
+          else if (S.origin === "loved") reason = "Because you love " + S.name;
+          else if (S.origin === "seed") reason = "Fans of " + S.name + " also like this";
+          else reason = "Related to " + S.name;
+        }
+        added += queueTracks(tracks, reason);
+      }
+    }
+  } finally { state.refilling = false; }
+  // light shuffle so it doesn't feel batched by artist
+  for (let i = state.queue.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [state.queue[i], state.queue[j]] = [state.queue[j], state.queue[i]]; }
+}
+
+/* ---------- Persistence ---------- */
+function save() {
+  try {
+    const data = {
+      v: 2,
+      artists: state.artists,
+      disliked: [...state.disliked],
+      liked: state.liked,
+      knownIds: [...state.knownIds].slice(-1200),
+      knownKeys: [...state.knownKeys].slice(-1200),
+      seedLabels: state.seedLabels,
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(data));
+  } catch (e) { /* storage may be blocked; app still works in-session */ }
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    state.artists = d.artists || {};
+    state.disliked = new Set(d.disliked || []);
+    state.liked = d.liked || [];
+    state.knownIds = new Set(d.knownIds || []);
+    state.knownKeys = new Set(d.knownKeys || []);
+    state.seedLabels = d.seedLabels || [];
+    return Object.keys(state.artists).length > 0 || state.liked.length > 0;
+  } catch (e) { return false; }
+}
+
+/* ---------- Onboarding UI ---------- */
+const seedGenres = new Map();   // genre -> weight (1..3); bigger = seeds harder
+const seedArtists = [];
+const genreChips = document.getElementById("genreChips");
+const artistChips = document.getElementById("artistChips");
+const startBtn = document.getElementById("startBtn");
+
+function renderChip(el, g, w) {
+  el.classList.remove("w1", "w2", "w3");
+  if (w > 0) el.classList.add("w" + w);
+  el.innerHTML = esc(g) + (w > 0 ? '<span class="wt">' + "•".repeat(w) + "</span>" : "");
+}
+GENRES.forEach(g => {
+  const el = document.createElement("div");
+  el.className = "chip";
+  renderChip(el, g, 0);
+  el.onclick = () => {
+    let w = (seedGenres.get(g) || 0) + 1;
+    if (w > 3) { seedGenres.delete(g); w = 0; } else { seedGenres.set(g, w); }
+    renderChip(el, g, w);
+    updateStart();
+  };
+  genreChips.appendChild(el);
+});
+document.getElementById("addArtist").onclick = addArtistChip;
+document.getElementById("artistInput").addEventListener("keydown", e => { if (e.key === "Enter") addArtistChip(); });
+function addArtistChip() {
+  const input = document.getElementById("artistInput");
+  const val = input.value.trim();
+  if (val && !seedArtists.includes(val)) {
+    seedArtists.push(val);
+    const el = document.createElement("div");
+    el.className = "chip on"; el.textContent = val + "  ✕";
+    el.onclick = () => { const i = seedArtists.indexOf(val); if (i >= 0) seedArtists.splice(i, 1); el.remove(); updateStart(); };
+    artistChips.appendChild(el);
+  }
+  input.value = ""; updateStart();
+}
+function updateStart() {
+  const n = seedGenres.size + seedArtists.length;
+  startBtn.disabled = n < 2;
+  startBtn.textContent = n < 2 ? "Pick at least 2 to start" : "Start discovering →";
+}
+
+startBtn.onclick = async () => {
+  startBtn.disabled = true; startBtn.textContent = "Building your radar…";
+  document.getElementById("nav").style.display = "flex";
+  showScreen("discover");
+  state.seedLabels = [...seedGenres.keys(), ...seedArtists];
+
+  // register artist seeds (expand via related)
+  for (const name of seedArtists) {
+    const a = await searchArtist(name);
+    if (a) ensureArtist(a.id, a.name, 3, { origin: "seed" });
+  }
+  // register genre seeds via anchor artists (weighted), then expand through the graph
+  for (const [g, w] of seedGenres) {
+    const anchors = GENRE_ANCHORS[g] || [g];
+    for (const name of anchors) {
+      const a = await searchArtist(name);
+      if (a) ensureArtist(a.id, a.name, 1.5 * w, { origin: "seed", genreName: g }); // weight scales seeding
+    }
+  }
+  // build out the queue from the graph
+  await refill();
+  if (state.queue.length < 6) await refill();
+  save();
+  next();
+};
+
+/* ---------- Screens ---------- */
+function showScreen(name) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === name));
+  document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("active", b.dataset.screen === name));
+  if (name !== "discover") audio.pause();
+  else if (state.current) safePlay();
+}
+document.querySelectorAll("#nav button").forEach(b => b.onclick = () => showScreen(b.dataset.screen));
+
+document.getElementById("resumeBtn").onclick = async () => {
+  document.getElementById("nav").style.display = "flex";
+  showScreen("discover");
+  if (!state.queue.length) { await refill(); if (state.queue.length < 6) await refill(); }
+  next();
+};
+
+/* ---------- Deck ---------- */
+const deck = document.getElementById("deck");
+function next() {
+  if (state.queue.length < 5 && !state.refilling) refill(); // top up in background
+  const track = state.queue.shift();
+  state.current = track;
+  if (!track) { renderEmpty(); return; }
+  renderCard(track);
+  playTrack(track);
+}
+function renderCard(track) {
+  deck.innerHTML = "";
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML =
+    '<div class="progress" id="prog"></div>' +
+    '<div class="tint"></div>' +
+    '<div class="besttag">🔥 best part</div>' +
+    '<div class="stamp love"></div><div class="stamp nope"></div><div class="stamp heard"></div>' +
+    '<div class="art" style="background-image:url(\'' + (track.cover || "") + '\')"></div>' +
+    '<div class="meta"><span class="reason">' + esc(track.reason || "Discovery") + '</span>' +
+    '<h2 class="title">' + esc(track.title) + '</h2>' +
+    '<p class="artist">' + esc(track.artist) + '</p></div>';
+  deck.appendChild(card);
+  attachDrag(card);
+  card.querySelector(".art").addEventListener("click", () => safePlay());
+}
+function renderEmpty() {
+  deck.innerHTML = '<div class="empty"><div style="font-size:40px">🎧</div><div>Digging deeper for you…</div></div>';
+  refill().then(() => { if (state.queue.length) next(); else deck.innerHTML = '<div class="empty"><div style="font-size:40px">🌌</div><div>Wow, you\'ve explored a lot! Try loving a few more to open new paths.</div></div>'; });
+}
+function esc(s) { return (s || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+/* ---------- Audio + "best part" detection ---------- */
+function safePlay() { const p = audio.play(); if (p && p.catch) p.catch(() => {}); }
+audio.addEventListener("timeupdate", () => { const prog = document.getElementById("prog"); if (prog && audio.duration) prog.style.width = (audio.currentTime / audio.duration * 100) + "%"; });
+
+// Analyze a 30s preview's energy → return the start time (sec) of its most
+// energetic sustained moment (usually the hook/drop/chorus). Cross-origin fetch
+// works because Deezer's CDN sends Access-Control-Allow-Origin: *. Fails soft.
+async function analyzeHot(url) {
+  const ctx = getCtx(); if (!ctx) return 0;
+  const resp = await fetch(url);
+  const arr = await resp.arrayBuffer();
+  const buf = await ctx.decodeAudioData(arr);
+  return findHotStart(buf);
+}
+function findHotStart(buf) {
+  const data = buf.getChannelData(0);
+  const sr = buf.sampleRate, dur = buf.duration;
+  const fs = Math.floor(sr * 0.25);                 // 0.25s analysis frames
+  const frames = Math.floor(data.length / fs);
+  if (frames < 4) return 0;
+  const energy = new Float32Array(frames);
+  for (let i = 0; i < frames; i++) {
+    let s = 0; const off = i * fs;
+    for (let j = 0; j < fs; j += 8) { const v = data[off + j]; s += v * v; } // sample every 8th for speed
+    energy[i] = Math.sqrt(s / (fs / 8));
+  }
+  const win = 8;                                    // smooth over ~2s to favour sustained energy
+  const sm = new Float32Array(frames);
+  for (let i = 0; i < frames; i++) {
+    let s = 0, c = 0;
+    for (let k = -win / 2; k < win / 2; k++) { const idx = i + k; if (idx >= 0 && idx < frames) { s += energy[idx]; c++; } }
+    sm[i] = s / c;
+  }
+  const limit = Math.max(1, Math.floor((dur - 4) / 0.25)); // don't land in the fade-out
+  let best = 0, bestVal = -1;
+  for (let i = 0; i < Math.min(frames, limit); i++) { if (sm[i] > bestVal) { bestVal = sm[i]; best = i; } }
+  let t = best * 0.25 - 1.5;                         // ease in just before the peak
+  if (t < 1.5) return 0;                             // hot part is basically the start → don't jump
+  if (t > dur - 8) t = Math.max(0, dur - 8);
+  return t;
+}
+function ensureHot(track) {
+  if (!track || hotStarts[track.id] !== undefined || hotPending.has(track.id)) return Promise.resolve();
+  hotPending.add(track.id);
+  return analyzeHot(track.preview)
+    .then(sec => { hotStarts[track.id] = sec || 0; })
+    .catch(() => { hotStarts[track.id] = 0; })       // CORS/decoding failed → just play from start
+    .finally(() => hotPending.delete(track.id));
+}
+function showBestTag() { const card = deck.querySelector(".card"); const tag = card && card.querySelector(".besttag"); if (tag) tag.classList.add("show"); }
+
+function playTrack(track) {
+  const token = ++audioToken;
+  audio.onloadedmetadata = null;
+  audio.src = track.preview;
+  try { audio.currentTime = 0; } catch (_) {}
+  const applyHot = () => {
+    if (token !== audioToken) return;               // a newer card took over
+    const h = hotStarts[track.id];
+    if (h && h > 1.5 && audio.currentTime < 2.5) { try { audio.currentTime = h; } catch (_) {} showBestTag(); }
+  };
+  audio.onloadedmetadata = applyHot;
+  safePlay();
+  ensureHot(track).then(applyHot);                  // apply once analysis is ready (if still current)
+  if (state.queue[0]) ensureHot(state.queue[0]);    // prefetch the NEXT song's best part while this plays
+}
+
+/* ---------- Decisions + learning ---------- */
+function showBurst(kind) {
+  const card = deck.querySelector(".card");
+  const fx = card && card._fx;
+  const burst = document.getElementById("burst");
+  let text = "", color = "var(--love)";
+  if (kind === "love") { text = "🔥 " + (fx ? fx.love : "banger"); color = "var(--love)"; }
+  else if (kind === "nope") { text = fx ? fx.nope : "nah."; color = "var(--nope)"; }
+  else { text = fx ? fx.heard : "heard it!"; color = "var(--heard)"; }
+  burst.textContent = text;
+  burst.style.color = color;
+  burst.classList.remove("show"); void burst.offsetWidth; burst.classList.add("show"); // restart animation
+}
+function decide(kind) {
+  const track = state.current;
+  if (!track) return;
+  showBurst(kind);
+  const a = state.artists[track.artistId];
+  if (kind === "love") {
+    ensureArtist(track.artistId, track.artist, 3, { origin: "loved" });
+    state.liked.push(track); updateFinds();
+    toast("♥ Added to your Finds");
+    flyOut("right");
+  } else if (kind === "nope") {
+    state.disliked.add(track.artist);
+    if (a) a.score -= 2;
+    flyOut("left");
+  } else if (kind === "heard") {
+    // already knew it → not novel enough; push the engine further out
+    if (a) a.score -= 0.5;
+    state.exploreBoost = 2;
+    toast("Got it — reaching further out");
+    flyOut("up");
+  }
+  save();
+}
+function flyOut(dir) {
+  const card = deck.querySelector(".card");
+  if (!card) { next(); return; }
+  const x = dir === "right" ? 600 : dir === "left" ? -600 : 0;
+  const y = dir === "up" ? -700 : 60;
+  const rot = dir === "right" ? 25 : dir === "left" ? -25 : 0;
+  card.style.transition = "transform .35s ease-out, opacity .35s";
+  card.style.transform = "translate(" + x + "px," + y + "px) rotate(" + rot + "deg)";
+  card.style.opacity = "0";
+  setTimeout(next, 300);
+}
+document.getElementById("btnLove").onclick = () => decide("love");
+document.getElementById("btnNope").onclick = () => decide("nope");
+document.getElementById("btnHeard").onclick = () => decide("heard");
+document.getElementById("btnReplay").onclick = () => { const h = state.current && hotStarts[state.current.id]; try { audio.currentTime = (h && h > 1.5) ? h : 0; } catch (_) {} safePlay(); };
+
+/* ---------- Drag / swipe ---------- */
+// Playful, artist-safe remarks. Likes get hyped, passes stay light (never bash an artist).
+const LOVE_REMARKS = ["banger","certified heat","yes chef","this slaps","instant add","obsessed","on repeat","vibe unlocked","heat check"];
+const NOPE_REMARKS = ["nah.","not today","next!","keep looking","eh, pass","not the one","hard skip","swipe city","maybe later"];
+const HEARD_REMARKS = ["old news 😎","already know it","in rotation","classic — next","heard it!","been there"];
+function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+
+function attachDrag(card) {
+  const love = card.querySelector(".stamp.love");
+  const nope = card.querySelector(".stamp.nope");
+  const heard = card.querySelector(".stamp.heard");
+  const tint = card.querySelector(".tint");
+  const loveRemark = pick(LOVE_REMARKS), nopeRemark = pick(NOPE_REMARKS), heardRemark = pick(HEARD_REMARKS);
+  love.textContent = "🔥 " + loveRemark;
+  nope.textContent = nopeRemark;
+  heard.textContent = heardRemark;
+  card._fx = { love: loveRemark, nope: nopeRemark, heard: heardRemark }; // read by the center burst
+
+  let dragging = false, startX = 0, startY = 0, dx = 0, dy = 0;
+  const TH = 120; // swipe-commit threshold
+
+  function clearFx() {
+    love.style.opacity = nope.style.opacity = heard.style.opacity = 0;
+    tint.style.opacity = 0;
+  }
+  function springBack() {
+    card.style.transition = "transform .38s cubic-bezier(.2,1.35,.4,1)";
+    card.style.transform = "translate(0,0) rotate(0deg)";
+    clearFx();
+  }
+
+  card.addEventListener("pointerdown", e => {
+    dragging = true; startX = e.clientX; startY = e.clientY; dx = dy = 0;
+    try { card.setPointerCapture(e.pointerId); } catch (_) {}
+    card.style.transition = "none";
+  });
+  card.addEventListener("pointermove", e => {
+    if (!dragging) return;
+    dx = e.clientX - startX; dy = e.clientY - startY;
+    const horiz = Math.abs(dx) >= Math.abs(dy);
+    card.style.transform = "translate(" + dx + "px," + dy + "px) rotate(" + (dx / 20) + "deg)";
+    clearFx();
+    if (horiz && dx > 0) {
+      const prog = Math.min(dx / TH, 1);
+      const flames = Math.min(1 + Math.max(0, Math.floor((dx - TH) / 55)), 4); // more fire the further you go
+      love.textContent = "🔥".repeat(flames) + " " + loveRemark;
+      love.style.opacity = Math.min(dx / 80, 1);
+      love.style.transform = "rotate(12deg) scale(" + (0.75 + prog * 0.55) + ")";
+      tint.style.background = "radial-gradient(circle at 82% 50%, rgba(35,209,139," + (0.15 + prog * 0.45) + "), transparent 68%)";
+      tint.style.opacity = 1;
+    } else if (horiz && dx < 0) {
+      const prog = Math.min(-dx / TH, 1);
+      nope.style.opacity = Math.min(-dx / 80, 1);
+      nope.style.transform = "rotate(-12deg) scale(" + (0.75 + prog * 0.55) + ")";
+      tint.style.background = "radial-gradient(circle at 18% 50%, rgba(255,92,108," + (0.15 + prog * 0.45) + "), transparent 68%)";
+      tint.style.opacity = 1;
+    } else if (!horiz && dy < 0) {
+      const prog = Math.min(-dy / 140, 1);
+      heard.style.opacity = Math.min(-dy / 90, 1);
+      heard.style.transform = "translateX(-50%) scale(" + (0.75 + prog * 0.5) + ")";
+      tint.style.background = "radial-gradient(circle at 50% 12%, rgba(245,166,35," + (0.12 + prog * 0.4) + "), transparent 65%)";
+      tint.style.opacity = 1;
+    }
+    if (e.cancelable) e.preventDefault();
+  });
+  function end() {
+    if (!dragging) return; dragging = false;
+    if (dx > TH) decide("love");
+    else if (dx < -TH) decide("nope");
+    else if (dy < -140 && Math.abs(dy) > Math.abs(dx)) decide("heard");
+    else springBack();
+  }
+  card.addEventListener("pointerup", end);
+  card.addEventListener("pointercancel", end);
+}
+
+/* ---------- Finds + insights ---------- */
+function updateFinds() {
+  document.getElementById("findsCount").textContent = state.liked.length;
+  const list = document.getElementById("findsList");
+  const insights = document.getElementById("insights");
+  if (!state.liked.length) { list.innerHTML = '<div class="empty-finds">No finds yet.<br>Swipe right on something you love.</div>'; insights.style.display = "none"; return; }
+
+  // insights: top artists among your finds
+  const counts = {};
+  state.liked.forEach(t => counts[t.artist] = (counts[t.artist] || 0) + 1);
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(e => e[0]);
+  insights.style.display = "block";
+  document.getElementById("insightsVal").textContent = top.join(" · ");
+
+  list.innerHTML = "";
+  [...state.liked].reverse().forEach(t => {
+    const row = document.createElement("div");
+    row.className = "find";
+    row.innerHTML = '<img src="' + (t.cover || "") + '" alt="" />' +
+      '<div class="fmeta"><div class="n">' + esc(t.title) + '</div><div class="a">' + esc(t.artist) + '</div></div>' +
+      '<button class="mini">▶</button>' +
+      '<a class="open" href="' + (t.link || "#") + '" target="_blank" rel="noopener">Open ↗</a>';
+    row.querySelector(".mini").onclick = () => { audioToken++; audio.onloadedmetadata = null; audio.src = t.preview; audio.currentTime = 0; audio.play(); };
+    list.appendChild(row);
+  });
+}
+document.getElementById("startOver").onclick = () => {
+  try { localStorage.removeItem(LS_KEY); } catch (e) {}
+  location.reload();
+};
+
+/* ---------- Toast ---------- */
+let toastTimer = null;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 1600);
+}
+
+/* ---------- Boot ---------- */
+(function boot() {
+  const returning = load();
+  if (returning) {
+    document.getElementById("welcomeStat").textContent = state.liked.length;
+    const artistsLine = state.seedLabels.length ? ("Started from: " + state.seedLabels.slice(0, 5).join(", ")) : "";
+    document.getElementById("welcomeArtists").textContent = artistsLine;
+    updateFinds();
+    showScreen("welcome");
+  } else {
+    showScreen("onboarding");
+  }
+})();
+</script>
+</body>
+</html>
