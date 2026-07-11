@@ -1212,7 +1212,13 @@ function updateFinds() {
         '<a class="yt" href="' + yt + '" target="_blank" rel="noopener">YouTube</a>' +
         '<a class="sc" href="' + sc + '" target="_blank" rel="noopener">SoundCloud</a>' +
       '</div>';
-    row.querySelector(".mini").onclick = () => { audioToken++; audio.onloadedmetadata = null; audio.loop = false; audio.src = t.preview; audio.currentTime = 0; audio.play(); };
+    row.querySelector(".mini").onclick = async () => {
+      const tok = ++audioToken; audio.onloadedmetadata = null; audio.loop = false;
+      const url = await resolvePreview(t);           // stored preview may have expired → refresh it
+      if (tok !== audioToken) return;
+      audio.src = url; try { audio.currentTime = 0; } catch (_) {}
+      safePlay();
+    };
     list.appendChild(row);
   });
 
@@ -1574,14 +1580,24 @@ function renderDmCard(track) {
   card.querySelector(".art").addEventListener("click", () => safePlay());
   setBackdrop(track.cover);
 }
-function playDm(track) {
+// Deezer preview URLs expire (they 403 after a while). Any track played from
+// storage (a deck, or old Finds) must re-fetch a live preview by its track id.
+async function resolvePreview(track) {
+  if (track._fresh && track.preview) return track.preview;
+  try { const d = await deezer("track/" + track.id, {}); if (d && d.preview) { track.preview = d.preview; track._fresh = true; return d.preview; } } catch (_) {}
+  try { const s = await deezer("search", { q: track.artist + " " + track.title, limit: 1 }); if (s && s.data && s.data[0] && s.data[0].preview) { track.preview = s.data[0].preview; track._fresh = true; return s.data[0].preview; } } catch (_) {}
+  return track.preview;
+}
+async function playDm(track) {
   const token = ++audioToken;
-  audio.onloadedmetadata = null; audio.loop = true; audio.src = track.preview;
+  const url = await resolvePreview(track);
+  if (token !== audioToken) return;                 // a newer card took over while we fetched
+  audio.onloadedmetadata = null; audio.loop = true; audio.src = url;
   try { audio.currentTime = 0; } catch (_) {}
   const applyHot = () => { if (token !== audioToken) return; const h = hotStarts[track.id]; if (h && h > 1.5 && audio.currentTime < 2.5) { try { audio.currentTime = h; } catch (_) {} } };
   audio.onloadedmetadata = applyHot; safePlay();
   ensureHot(track).then(applyHot);
-  if (dmQueue[0]) ensureHot(dmQueue[0]);
+  if (dmQueue[0]) resolvePreview(dmQueue[0]).then(() => ensureHot(dmQueue[0])); // warm the next song
 }
 function dmDecide(kind, kin) {
   if (!dmCurrent) return;
