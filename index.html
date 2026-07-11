@@ -262,6 +262,9 @@
   .undo-btn svg { width: 13px; height: 13px; }
   .adv-pill { align-self: center; margin-top: 3px; background: var(--glass); backdrop-filter: blur(18px) saturate(1.5); -webkit-backdrop-filter: blur(18px) saturate(1.5); border: 1px solid var(--glass-brd); color: var(--text); font-weight: 700; font-size: 12px; padding: 7px 15px; border-radius: 16px; cursor: pointer; transition: transform .1s; }
   .adv-pill:active { transform: scale(.94); }
+  .adv-pill.on { background: var(--accent); color: #0b0b0d; border-color: transparent; }
+  .pill-row { display: flex; gap: 8px; justify-content: center; align-self: center; }
+  .freshtag { display: block; width: fit-content; font-size: 11px; letter-spacing: .5px; font-weight: 800; color: #0b0b0d; background: var(--accent); padding: 5px 11px; border-radius: 12px; margin-bottom: 8px; }
   .toast { position: absolute; left: 50%; bottom: 100px; transform: translateX(-50%); background: rgba(22,22,26,.55); backdrop-filter: blur(24px) saturate(1.7); -webkit-backdrop-filter: blur(24px) saturate(1.7); border: 1px solid var(--glass-brd); color: var(--text); padding: 10px 16px; border-radius: 16px; font-size: 13px; font-weight: 600; opacity: 0; transition: opacity .3s, transform .3s; z-index: 50; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
 </style>
@@ -320,7 +323,10 @@
           <div class="ctrl-wrap"><button class="ctrl small heard" id="btnHeard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.2 4.5L19 7.5"/></svg></button><div class="ctrl-label">HEARD IT</div></div>
           <div class="ctrl-wrap"><button class="ctrl big love" id="btnLove"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></button><div class="ctrl-label">LOVE</div></div>
         </div>
-        <button class="adv-pill" id="advPill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M5 8h8"/><path d="M17 8h2"/><circle cx="15" cy="8" r="2"/><path d="M5 16h2"/><path d="M9 16h10"/><circle cx="7" cy="16" r="2"/></svg><span id="advLabel">Adventurous</span></button>
+        <div class="pill-row">
+          <button class="adv-pill" id="advPill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M5 8h8"/><path d="M17 8h2"/><circle cx="15" cy="8" r="2"/><path d="M5 16h2"/><path d="M9 16h10"/><circle cx="7" cy="16" r="2"/></svg><span id="advLabel">Adventurous</span></button>
+          <button class="adv-pill" id="freshPill"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l1.7 5.3 5.3 1.7-5.3 1.7L12 16.5l-1.7-5.3L5 9.5l5.3-1.7z"/></svg><span>Fresh Finds</span></button>
+        </div>
       </div>
     </section>
 
@@ -463,6 +469,7 @@ const state = {
   refilling: false,
   exploreBoost: 0,      // when >0, reach further out in the graph
   adventure: 1,         // discovery dial: 0=cozy, 1=balanced, 2=adventurous
+  freshFinds: false,    // when true, champion smaller/emerging artists
   seedLabels: [],       // for display
 };
 
@@ -547,6 +554,7 @@ function ensureArtist(id, name, score, meta) {
   } else {
     state.artists[id].score += score * 0.3; // reinforce existing
     if (meta && meta.origin === "loved") state.artists[id].origin = "loved";
+    if (meta && meta.nbFan != null && state.artists[id].nbFan == null) state.artists[id].nbFan = meta.nbFan;
   }
   return state.artists[id];
 }
@@ -556,7 +564,7 @@ function normalize(t, reason) {
   const cover = t.album && (t.album.cover_big || t.album.cover_medium || t.album.cover);
   return { id: t.id, title: t.title, artist: t.artist.name, artistId: t.artist.id, cover, preview: t.preview, link: t.link, rank: t.rank || 0, albumId: t.album && t.album.id, reason };
 }
-function queueTracks(list, reason) {
+function queueTracks(list, reason, srcFan) {
   let n = 0;
   for (const t of list) {
     if (!t || !t.preview || !t.artist) continue;
@@ -567,7 +575,9 @@ function queueTracks(list, reason) {
     if (state.knownKeys.has(key)) continue;
     if (state.disliked.has(t.artist.name)) continue;
     state.knownIds.add(t.id); state.knownKeys.add(key);
-    state.queue.push(normalize(t, reason));
+    const nt = normalize(t, reason);
+    if (srcFan != null) nt.nbFan = srcFan; // fan-count of the artist this came from (for Fresh Finds)
+    state.queue.push(nt);
     ensureArtist(t.artist.id, t.artist.name, 0.4); // loving this later can expand it
     n++;
   }
@@ -590,7 +600,7 @@ async function fetchRelatedInto(a) {
   const rel = await relatedArtists(a.id);
   a.relatedFetched = true;
   a.related = rel.map(r => r.id);
-  rel.forEach(r => ensureArtist(r.id, r.name, a.score * 0.5, { via: a.name }));
+  rel.forEach(r => ensureArtist(r.id, r.name, a.score * 0.5, { via: a.name, nbFan: r.nb_fan }));
 }
 
 async function refill() {
@@ -634,7 +644,7 @@ async function refill() {
           else if (S.origin === "seed") reason = "Fans of " + S.name + " also like this";
           else reason = "Related to " + S.name;
         }
-        added += queueTracks(tracks, reason);
+        added += queueTracks(tracks, reason, T.nbFan);
       }
     }
   } finally { state.refilling = false; }
@@ -644,10 +654,16 @@ async function refill() {
 // Deezer 'rank' ~ popularity: cozy floats hits up, adventurous floats deep cuts up, balanced = shuffle.
 function orderQueue() {
   const adv = state.adventure;
+  const fresh = state.freshFinds;
   state.queue.forEach(t => {
-    const pop = (t.rank || 0) / 1000000; // ~0..1
-    const bias = adv === 0 ? pop : adv === 2 ? -pop : 0;
-    t._ord = bias + Math.random();
+    const pop = (t.rank || 0) / 1000000; // ~0..1 track popularity
+    let bias = adv === 0 ? pop : adv === 2 ? -pop : 0;
+    if (fresh) {
+      // Fresh Finds: champion smaller artists — favour low fan-count + low track rank.
+      const fan = t.nbFan == null ? 0.5 : Math.min(1, t.nbFan / 800000);
+      bias += -(fan * 1.3) - pop * 0.6;
+    }
+    t._ord = bias + Math.random() * (fresh ? 0.5 : 1); // less randomness in Fresh mode so smallness dominates
   });
   state.queue.sort((a, b) => b._ord - a._ord);
 }
@@ -664,6 +680,7 @@ function save() {
       knownKeys: [...state.knownKeys].slice(-1200),
       seedLabels: state.seedLabels,
       adventure: state.adventure,
+      freshFinds: state.freshFinds,
     };
     localStorage.setItem(LS_KEY, JSON.stringify(data));
   } catch (e) { /* storage may be blocked; app still works in-session */ }
@@ -680,6 +697,7 @@ function load() {
     state.knownKeys = new Set(d.knownKeys || []);
     state.seedLabels = d.seedLabels || [];
     if (typeof d.adventure === "number") state.adventure = d.adventure;
+    if (typeof d.freshFinds === "boolean") state.freshFinds = d.freshFinds;
     return Object.keys(state.artists).length > 0 || state.liked.length > 0;
   } catch (e) { return false; }
 }
@@ -761,14 +779,14 @@ startBtn.onclick = async () => {
   // register artist seeds (weighted, expand via related)
   for (const [name, w] of seedArtists) {
     const a = await searchArtist(name);
-    if (a) ensureArtist(a.id, a.name, 2.5 * w, { origin: "seed" }); // weight scales seeding
+    if (a) ensureArtist(a.id, a.name, 2.5 * w, { origin: "seed", nbFan: a.nb_fan }); // weight scales seeding
   }
   // register genre seeds via anchor artists (weighted), then expand through the graph
   for (const [g, w] of seedGenres) {
     const anchors = GENRE_ANCHORS[g] || [g];
     for (const name of anchors) {
       const a = await searchArtist(name);
-      if (a) ensureArtist(a.id, a.name, 1.5 * w, { origin: "seed", genreName: g }); // weight scales seeding
+      if (a) ensureArtist(a.id, a.name, 1.5 * w, { origin: "seed", genreName: g, nbFan: a.nb_fan }); // weight scales seeding
     }
   }
   // build out the queue from the graph
@@ -828,7 +846,8 @@ function renderCard(track) {
     '<div class="besttag">🔥 best part</div>' +
     '<div class="stamp love"></div><div class="stamp nope"></div><div class="stamp heard"></div>' +
     '<div class="art" style="background-image:url(\'' + (track.cover || "") + '\')"></div>' +
-    '<div class="meta"><span class="reason">' + esc(track.reason || "Discovery") + '</span>' +
+    '<div class="meta">' + (track.nbFan != null && track.nbFan < 40000 ? '<span class="freshtag">✦ Fresh Find</span>' : '') +
+    '<span class="reason">' + esc(track.reason || "Discovery") + '</span>' +
     '<h2 class="title">' + esc(track.title) + '</h2>' +
     '<p class="artist">' + esc(track.artist) + '</p></div>';
   deck.appendChild(card);
@@ -1090,6 +1109,18 @@ function setAdventure(n) {
   orderQueue(); // re-order what's already queued so the change is felt right away
 }
 document.getElementById("advPill").onclick = () => setAdventure(state.adventure + 1);
+
+/* ---------- Fresh Finds — champion smaller / emerging artists ---------- */
+function applyFreshUI() { const p = document.getElementById("freshPill"); if (p) p.classList.toggle("on", !!state.freshFinds); }
+function setFresh() {
+  state.freshFinds = !state.freshFinds;
+  applyFreshUI();
+  save();
+  toast(state.freshFinds ? "✦ Fresh Finds on — surfacing smaller artists" : "Fresh Finds off");
+  if (state.freshFinds) state.exploreBoost = Math.max(state.exploreBoost, 2);
+  orderQueue();
+}
+document.getElementById("freshPill").onclick = setFresh;
 
 /* ---------- Drag / swipe ---------- */
 // Playful, artist-safe remarks. Likes get hyped, passes stay light (never bash an artist).
@@ -1741,6 +1772,7 @@ function toast(msg) {
 (function boot() {
   const returning = load();
   applyAdventureUI();
+  applyFreshUI();
   function showHome() {
     if (returning) {
       document.getElementById("welcomeStat").textContent = state.liked.length;
