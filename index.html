@@ -218,6 +218,27 @@
   .deckrow .dr-friend b { color: var(--text); font-weight: 700; }
   .dm-hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 6; background: rgba(12,11,18,.6); backdrop-filter: blur(14px) saturate(1.5); -webkit-backdrop-filter: blur(14px) saturate(1.5); border: 1px solid var(--glass-brd); color: #fff; font-weight: 800; font-size: 14px; padding: 13px 20px; border-radius: 18px; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,.5); animation: hintPulse 1.6s ease-in-out infinite; }
   @keyframes hintPulse { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(1.06); } }
+  .dm-intro { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 30px; }
+  .dm-intro .logo { filter: drop-shadow(0 3px 10px rgba(0,0,0,.5)); }
+  .dm-intro-t { font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 24px; margin-top: 16px; }
+  .dm-intro-s { color: var(--muted); font-size: 14px; margin-top: 8px; line-height: 1.5; }
+  .dm-intro-note { color: var(--muted); font-size: 12px; margin-top: 16px; }
+  .dm-progress { display: flex; gap: 4px; padding: 10px 18px 0; }
+  .dm-progress .seg { flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,.15); transition: background .3s; }
+  .dm-progress .seg.done { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .dm-progress .seg.cur { background: rgba(255,255,255,.45); }
+  .dm-end { position: absolute; inset: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 22px; }
+  .dm-end-big { font-size: 54px; font-weight: 900; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; line-height: 1; }
+  .dm-end-big span { font-size: 26px; opacity: .6; }
+  .dm-end-sub { color: var(--text); font-weight: 700; margin-top: 8px; font-size: 15px; }
+  .dm-loved-list { width: 100%; margin-top: 18px; display: flex; flex-direction: column; gap: 8px; }
+  .dm-loved { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--glass-brd); border-radius: 12px; padding: 8px; }
+  .dm-loved img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; }
+  .dm-loved .dl-meta { flex: 1; min-width: 0; text-align: left; }
+  .dm-loved .dl-t { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dm-loved .dl-a { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dm-loved .dl-heart { color: var(--love); font-size: 16px; }
+  .dm-end-note { color: var(--muted); font-size: 13px; margin-top: 16px; }
   /* Bottom tab bar — primary navigation (scales to Friends, DMs, Profile) */
   .tabbar { display: flex; background: rgba(30,27,48,.42); backdrop-filter: blur(30px) saturate(1.8); -webkit-backdrop-filter: blur(30px) saturate(1.8); border: 1px solid var(--glass-brd); border-radius: 24px; margin: 2px 10px calc(6px + env(safe-area-inset-bottom)); padding: 6px 4px; z-index: 5; box-shadow: 0 12px 34px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.1); }
   .tab { flex: 1; background: transparent; border: 0; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 9.5px; font-weight: 700; cursor: pointer; padding: 2px 0; transition: color .15s; }
@@ -381,16 +402,29 @@
 
     <!-- DECK MODE (a friend swiping a shared deck) -->
     <section class="screen" id="deckmode">
-      <div style="padding:12px 18px 2px;">
-        <div class="dm-title" id="dmTitle">A deck for you</div>
-        <div class="sub" id="dmSub" style="margin:3px 4px 0;">Swipe through these picks — love the ones you vibe with.</div>
+      <!-- intro: who sent it + a clear Start button (the first gesture, which unlocks audio) -->
+      <div class="dm-intro" id="dmIntro">
+        <img src="logo-mark.png" class="logo" style="height:38px" alt="Facet" />
+        <div class="dm-intro-t" id="dmIntroTitle">A deck for you</div>
+        <div class="dm-intro-s" id="dmIntroSub">swipe right on the ones you love</div>
+        <button class="btn-primary" id="dmStart" style="max-width:280px;margin-top:22px;">Start swiping ▶</button>
+        <div class="dm-intro-note">Your loves get sent back to them 💜</div>
       </div>
-      <div class="deck" id="dmDeck" style="margin:8px 18px 2px;"></div>
-      <div class="dock">
-        <div class="controls">
-          <div class="ctrl-wrap"><button class="ctrl big nope" id="dmNope"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button><div class="ctrl-label">NOPE</div></div>
-          <div class="ctrl-wrap"><button class="ctrl small replay" id="dmPlay"></button><div class="ctrl-label">PLAY</div></div>
-          <div class="ctrl-wrap"><button class="ctrl big love" id="dmLove"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></button><div class="ctrl-label">LOVE</div></div>
+      <!-- swipe view -->
+      <div id="dmSwipe" style="display:none;flex-direction:column;flex:1;min-height:0;">
+        <div class="dm-progress" id="dmBars"></div>
+        <div style="padding:8px 18px 0;">
+          <div class="dm-title" id="dmTitle">Deck</div>
+          <div class="sub" id="dmSub" style="margin:2px 4px 0;">swipe ♥ or ✕</div>
+        </div>
+        <div class="deck" id="dmDeck" style="margin:8px 18px 2px;"></div>
+        <div class="burst" id="dmBurst"></div>
+        <div class="dock">
+          <div class="controls">
+            <div class="ctrl-wrap"><button class="ctrl big nope" id="dmNope"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button><div class="ctrl-label">NOPE</div></div>
+            <div class="ctrl-wrap"><button class="ctrl small replay" id="dmPlay"></button><div class="ctrl-label">PLAY</div></div>
+            <div class="ctrl-wrap"><button class="ctrl big love" id="dmLove"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></button><div class="ctrl-label">LOVE</div></div>
+          </div>
         </div>
       </div>
     </section>
@@ -1473,7 +1507,7 @@ window._refreshSocial = function () { if (SB && me_session && me_profile) { sync
    that anyone can open from the link (login only needed to send
    their loves back). Reuses the same audio + "best part" engine.
    ============================================================ */
-let dmQueue = [], dmLoved = [], dmDeckMeta = null, dmCurrent = null, dmIndex = 0, dmTotal = 0;
+let dmQueue = [], dmLoved = [], dmDeckMeta = null, dmCurrent = null, dmIndex = 0, dmTotal = 0, dmSender = "A friend";
 
 // --- Sender: create + share + see results ---
 async function createDeckFromFinds() {
@@ -1535,27 +1569,53 @@ async function openDeck(deckId) {
     const { data: deck } = await SB.from("decks").select("*").eq("id", deckId).maybeSingle();
     if (!deck || !deck.tracks || !deck.tracks.length) { toast("That deck couldn't be found."); return false; }
     dmDeckMeta = deck;
-    dmQueue = deck.tracks.filter(t => t && t.preview).slice();
+    dmQueue = deck.tracks.filter(t => t && (t.id || t.preview)).slice();
     dmTotal = dmQueue.length; dmIndex = 0; dmLoved = [];
-    let senderName = "A friend";
-    try { const { data: op } = await SB.from("profiles").select("username").eq("id", deck.owner).maybeSingle(); if (op && op.username) senderName = "@" + op.username; } catch (_) {}
-    document.getElementById("dmTitle").textContent = senderName + " sent you a deck";
+    dmSender = "A friend";
+    try { const { data: op } = await SB.from("profiles").select("username").eq("id", deck.owner).maybeSingle(); if (op && op.username) dmSender = "@" + op.username; } catch (_) {}
+    document.getElementById("dmIntroTitle").textContent = dmSender + " sent you a deck";
+    document.getElementById("dmIntroSub").textContent = dmTotal + " songs · swipe right on the ones you love";
+    document.getElementById("dmIntro").style.display = "flex";
+    document.getElementById("dmSwipe").style.display = "none";
     document.getElementById("tabbar").style.display = "none";
     showScreen("deckmode");
-    // Browsers block autoplay until a user gesture — unlock audio on the first tap/swipe.
-    document.getElementById("deckmode").addEventListener("pointerdown", function unlock() {
-      try { const c = getCtx(); if (c && c.state === "suspended") c.resume(); } catch (_) {}
-      safePlay();
-    }, { once: true });
-    dmNext();
+    // Pre-fetch fresh audio links for the whole deck now → playback is instant later.
+    dmQueue.forEach(t => resolvePreview(t).catch(() => {}));
     return true;
   } catch (e) { return false; }
+}
+// The "Start swiping" click is the user gesture that unlocks audio for the session.
+function dmStartSwiping() {
+  document.getElementById("dmIntro").style.display = "none";
+  document.getElementById("dmSwipe").style.display = "flex";
+  document.getElementById("dmTitle").textContent = dmSender + "'s deck";
+  document.getElementById("dmSub").textContent = "swipe ♥ to love · ✕ to pass";
+  try { const c = getCtx(); if (c && c.state === "suspended") c.resume(); } catch (_) {}
+  const first = dmQueue[0]; // pre-resolved on open → unlock audio synchronously inside this gesture
+  if (first && first.preview) { audio.loop = true; audio.src = first.preview; safePlay(); }
+  buildDmBars();
+  dmNext();
+}
+function buildDmBars() {
+  const bars = document.getElementById("dmBars"); if (!bars) return;
+  bars.innerHTML = "";
+  for (let i = 0; i < dmTotal; i++) { const s = document.createElement("div"); s.className = "seg"; bars.appendChild(s); }
+}
+function updateDmBars() {
+  const bars = document.getElementById("dmBars"); if (!bars) return;
+  [...bars.children].forEach((s, i) => { s.className = "seg" + (i < dmIndex - 1 ? " done" : (i === dmIndex - 1 ? " cur" : "")); });
+}
+function showDmBurst(kind) {
+  const burst = document.getElementById("dmBurst"); if (!burst) return;
+  if (kind === "love") { burst.textContent = "🔥 " + pick(LOVE_REMARKS); burst.style.color = "var(--love)"; }
+  else { burst.textContent = pick(NOPE_REMARKS); burst.style.color = "var(--nope)"; }
+  burst.classList.remove("show"); void burst.offsetWidth; burst.classList.add("show");
 }
 function dmNext() {
   const track = dmQueue.shift();
   if (!track) { dmFinish(); return; }
   dmCurrent = track; dmIndex++;
-  document.getElementById("dmSub").textContent = "Song " + dmIndex + " of " + dmTotal + " · swipe ♥ or ✕";
+  updateDmBars();
   renderDmCard(track);
   playDm(track);
 }
@@ -1601,6 +1661,7 @@ async function playDm(track) {
 }
 function dmDecide(kind, kin) {
   if (!dmCurrent) return;
+  showDmBurst(kind);
   if (kind === "love") dmLoved.push({ id: dmCurrent.id, title: dmCurrent.title, artist: dmCurrent.artist, cover: dmCurrent.cover });
   const card = document.getElementById("dmDeck").querySelector(".card:not(.ghost)");
   if (!card) { dmNext(); return; }
@@ -1639,28 +1700,38 @@ function attachDeckDrag(card) {
 async function dmFinish() {
   audio.pause();
   const n = dmLoved.length;
-  document.getElementById("dmSub").textContent = "Deck complete! 🎉";
+  dmIndex = dmTotal + 1; updateDmBars();
+  const t = document.getElementById("dmTitle"); if (t) t.textContent = "Deck complete 🎉";
+  const sub = document.getElementById("dmSub"); if (sub) sub.textContent = "";
   const dmDeck = document.getElementById("dmDeck");
-  dmDeck.innerHTML = '<div class="empty"><div style="font-size:44px">🎧</div><div style="font-size:20px;font-weight:800;color:var(--text)">You loved ' + n + ' of ' + dmTotal + '</div><div id="dmSaveMsg" style="margin-top:2px;"></div></div>';
+  const lovedHtml = dmLoved.map(x => '<div class="dm-loved"><img src="' + (x.cover || "") + '" alt="" /><div class="dl-meta"><div class="dl-t">' + esc(x.title) + '</div><div class="dl-a">' + esc(x.artist) + '</div></div><span class="dl-heart">♥</span></div>').join("");
+  dmDeck.innerHTML =
+    '<div class="dm-end">' +
+      '<div class="dm-end-big">' + n + '<span>/' + dmTotal + '</span></div>' +
+      '<div class="dm-end-sub">you loved ' + n + (n === 1 ? ' song' : ' songs') + ' from ' + esc(dmSender) + '</div>' +
+      (lovedHtml ? '<div class="dm-loved-list">' + lovedHtml + '</div>' : '') +
+      '<div id="dmSaveMsg" class="dm-end-note"></div>' +
+    '</div>';
+  const endWrap = dmDeck.querySelector(".dm-end");
+  const setSave = (txt) => { const m = document.getElementById("dmSaveMsg"); if (m) m.textContent = txt; };
   if (SB && me_session && me_profile && dmDeckMeta) {
-    try {
-      await SB.from("deck_results").upsert({ deck_id: dmDeckMeta.id, swiper: me_session.user.id, swiper_name: me_profile.username, loved: dmLoved });
-      document.getElementById("dmSaveMsg").textContent = "Your picks were sent back to the sender ✓";
-    } catch (e) { document.getElementById("dmSaveMsg").textContent = "Couldn't save your picks — check your connection."; }
+    try { await SB.from("deck_results").upsert({ deck_id: dmDeckMeta.id, swiper: me_session.user.id, swiper_name: me_profile.username, loved: dmLoved }); setSave("Sent back to " + dmSender + " ✓"); }
+    catch (e) { setSave("Couldn't save — check your connection."); }
   } else {
-    document.getElementById("dmSaveMsg").textContent = "Make a free account on Facet to send your loves back!";
+    setSave("Make a free account to send your loves back!");
   }
   const cont = document.createElement("button");
-  cont.className = "btn-primary"; cont.style.maxWidth = "260px"; cont.style.marginTop = "18px";
+  cont.className = "btn-primary"; cont.style.maxWidth = "260px"; cont.style.margin = "18px auto 0";
   cont.textContent = (me_profile ? "Back to Facet" : "Try Facet yourself →");
   cont.onclick = () => { location.href = location.pathname; };
-  dmDeck.appendChild(cont);
+  endWrap.appendChild(cont);
 }
 audio.addEventListener("timeupdate", () => { const p = document.getElementById("dmProg"); if (p && audio.duration) p.style.width = (audio.currentTime / audio.duration * 100) + "%"; });
 audio.addEventListener("playing", () => { const h = document.getElementById("dmHint"); if (h) h.style.display = "none"; });
 audio.addEventListener("pause", () => { const h = document.getElementById("dmHint"); if (h) h.style.display = ""; });
 (function initDeckUI() {
   const b = document.getElementById("btnCreateDeck"); if (b) b.onclick = createDeckFromFinds;
+  const st = document.getElementById("dmStart"); if (st) st.onclick = dmStartSwiping;
   const l = document.getElementById("dmLove"); if (l) l.onclick = () => dmDecide("love");
   const nn = document.getElementById("dmNope"); if (nn) nn.onclick = () => dmDecide("nope");
   const pp = document.getElementById("dmPlay"); if (pp) { pp.onclick = () => { if (audio.paused) safePlay(); else audio.pause(); }; pp.innerHTML = ICON_PLAY; }
