@@ -56,7 +56,9 @@
   .chip { padding: 10px 15px; border-radius: 22px; background: var(--card); border: 1px solid var(--glass-brd); color: var(--text); cursor: pointer; font-size: 14px; font-weight: 600; line-height: 1; transition: transform .14s cubic-bezier(.2,1.5,.4,1), border-color .15s, background .15s, padding .15s, font-size .15s, box-shadow .15s; }
   .chip:active { transform: scale(.92); }
   .chip.on { border-color: var(--accent); background: rgba(255,255,255,.14); }
-  .chip .wt { font-size: .7em; opacity: .9; margin-left: 5px; letter-spacing: 1px; }
+  .chip .wt { display: inline-flex; gap: 2px; margin-left: 7px; font-size: .8em; vertical-align: middle; }
+  .chip .wt .hrt { color: #ff6b81; }
+  .chip .wt .hrt.off { color: #ff6b81; opacity: .3; }
   /* Weighted genre bubbles: tap 1→2→3 grows it, feeding the algorithm harder */
   .chip.w1 { border-color: var(--accent); background: rgba(255,255,255,.10); }
   .chip.w2 { border-color: var(--accent); background: rgba(255,255,255,.18); font-size: 16px; padding: 12px 18px; font-weight: 700; }
@@ -268,7 +270,9 @@
   .toast { position: absolute; left: 50%; bottom: 100px; transform: translateX(-50%); background: rgba(22,22,26,.55); backdrop-filter: blur(24px) saturate(1.7); -webkit-backdrop-filter: blur(24px) saturate(1.7); border: 1px solid var(--glass-brd); color: var(--text); padding: 10px 16px; border-radius: 16px; font-size: 13px; font-weight: 600; opacity: 0; transition: opacity .3s, transform .3s; z-index: 50; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
   /* Chip icons: emoji for genres, artist photo for artists */
-  .chip-av { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 6px; margin-top: -2px; }
+  .chip-av { width: 1.8em; height: 1.8em; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid rgba(255,255,255,.18); }
+  .chip.has-av { display: inline-flex; align-items: center; padding-left: 6px; }
+  .chip.has-av .chip-av { margin-right: 9px; }
   /* Artist profile screen */
   #artist { padding: 8px 16px 24px; overflow-y: auto; }
   .artist-back { display: inline-flex; align-items: center; gap: 3px; background: transparent; border: 0; color: var(--muted); font-weight: 700; font-size: 14px; cursor: pointer; padding: 6px 2px; }
@@ -760,7 +764,13 @@ const startBtn = document.getElementById("startBtn");
 function renderChip(el, g, w, lead) {
   el.classList.remove("w1", "w2", "w3");
   if (w > 0) el.classList.add("w" + w);
-  el.innerHTML = (lead || "") + esc(g) + (w > 0 ? '<span class="wt">' + "•".repeat(w) + "</span>" : "");
+  let hearts = "";
+  if (w > 0) {
+    hearts = '<span class="wt">';
+    for (let i = 1; i <= 3; i++) hearts += '<span class="hrt' + (i <= w ? "" : " off") + '">♥</span>';
+    hearts += "</span>";
+  }
+  el.innerHTML = (lead || "") + esc(g) + hearts;
 }
 GENRES.forEach(g => {
   const el = document.createElement("div");
@@ -813,8 +823,10 @@ function addArtistChip() {
     artistChips.appendChild(el);
     // Try to show the artist's photo on the chip (best-effort)
     searchArtist(val).then(a => {
-      if (a && a.picture_small && seedArtists.has(val)) {
-        el._lead = '<img class="chip-av" src="' + a.picture_small + '" alt="" />';
+      const pic = a && (a.picture_medium || a.picture || a.picture_small);
+      if (pic && seedArtists.has(val)) {
+        el._lead = '<img class="chip-av" src="' + pic + '" alt="" />';
+        el.classList.add("has-av");
         renderChip(el, val, seedArtists.get(val), el._lead);
       }
     }).catch(() => {});
