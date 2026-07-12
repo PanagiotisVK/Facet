@@ -40,6 +40,15 @@
   .brand small { color: var(--muted); font-weight: 600; font-size: 10px; letter-spacing: 1px; }
   .badge { display: inline-block; min-width: 18px; text-align: center; background: var(--accent); color: #0b0b0d; border-radius: 10px; font-size: 11px; padding: 1px 6px; margin-left: 5px; }
   .badge.alert { background: #ef5b6b; color: #fff; font-weight: 700; box-shadow: 0 0 0 3px rgba(239,91,107,.18); }
+  .follow-shelf { margin: 4px 0 16px; }
+  .follow-shelf .fs-head { font-size: 13px; color: var(--muted); margin: 0 0 9px; font-weight: 600; letter-spacing: .02em; }
+  .fs-row { display: flex; gap: 15px; overflow-x: auto; padding: 2px 2px 6px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .fs-row::-webkit-scrollbar { display: none; }
+  .fs-art { flex: 0 0 auto; width: 66px; text-align: center; cursor: pointer; position: relative; }
+  .fs-art img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 1px solid var(--glass-brd); background: var(--bg2); display: block; margin: 0 auto; }
+  .fs-art:active img { transform: scale(.94); }
+  .fs-name { font-size: 11px; color: var(--text); margin-top: 6px; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .fs-new { position: absolute; top: -3px; right: 3px; background: #ef5b6b; color: #fff; font-size: 8.5px; font-weight: 700; padding: 1px 5px; border-radius: 8px; box-shadow: 0 0 0 2.5px var(--bg); z-index: 1; }
 
   main { flex: 1; position: relative; overflow: hidden; }
   .screen { position: absolute; inset: 0; display: none; flex-direction: column; }
@@ -367,6 +376,10 @@
     <section class="screen" id="finds">
       <h2>Your Finds</h2>
       <p class="sub">Songs you loved. Tap ▶ for a preview, or open it in Spotify / Apple — or hit YouTube / SoundCloud for remixes &amp; edits.</p>
+      <div class="follow-shelf" id="followShelf" style="display:none;">
+        <div class="fs-head">Following</div>
+        <div class="fs-row" id="followRow"></div>
+      </div>
       <div class="insights" id="insights" style="display:none;">
         <div class="lbl">Your taste is leaning toward</div>
         <div class="val" id="insightsVal"></div>
@@ -1302,6 +1315,8 @@ const SVC_ICONS = {
 
 function updateFinds() {
   document.getElementById("findsCount").textContent = state.liked.length;
+  renderFollowing();          // show artists you follow (independent of your finds)
+  checkFollowingReleases();   // once per session: flag any new releases
   const list = document.getElementById("findsList");
   const insights = document.getElementById("insights");
   const gwrap = document.getElementById("findsGenres");
@@ -1915,8 +1930,44 @@ audio.addEventListener("pause", () => { const h = document.getElementById("dmHin
    every discovered artist (especially small ones) a real home.
    ============================================================ */
 let artistBackTo = "discover";
+// ---- Following shelf: artists you follow, with a "New" flag on fresh releases ----
+function renderFollowing() {
+  const shelf = document.getElementById("followShelf"), row = document.getElementById("followRow");
+  if (!shelf || !row) return;
+  const arts = Object.values(state.following || {});
+  if (!arts.length) { shelf.style.display = "none"; return; }
+  shelf.style.display = "block";
+  row.innerHTML = arts.map(a =>
+    '<div class="fs-art" data-id="' + esc(String(a.id)) + '" data-name="' + esc(a.name || "") + '">'
+    + (a.hasNew ? '<span class="fs-new">✦ New</span>' : '')
+    + '<img src="' + esc(a.picture || "") + '" alt="" onerror="this.style.visibility=\'hidden\'"/>'
+    + '<div class="fs-name">' + esc(a.name || "Artist") + '</div></div>'
+  ).join("");
+  row.querySelectorAll(".fs-art").forEach(el => el.onclick = () => openArtist(el.dataset.id, el.dataset.name));
+}
+let _followChecked = false;
+async function checkFollowingReleases() {
+  if (_followChecked) return; _followChecked = true;
+  const arts = Object.values(state.following || {});
+  if (!arts.length) return;
+  let changed = false;
+  for (const a of arts) {
+    try {
+      const r = await deezer("artist/" + a.id + "/albums", { limit: 25 });
+      const albums = (r && r.data) || [];
+      if (!albums.length) continue;
+      let newest = albums[0];
+      for (const al of albums) { if ((al.release_date || "") > (newest.release_date || "")) newest = al; }
+      const key = String(newest.id);
+      if (a.lastAlbum && a.lastAlbum !== key) { a.hasNew = true; a.newTitle = newest.title; changed = true; } // genuinely new since last visit
+      if (a.lastAlbum !== key) { a.lastAlbum = key; changed = true; }                                          // first check just records it, silently
+    } catch (_) { /* skip this artist */ }
+  }
+  if (changed) { save(); renderFollowing(); }
+}
 async function openArtist(artistId, name) {
   if (!artistId) return;
+  if (state.following[artistId] && state.following[artistId].hasNew) { delete state.following[artistId].hasNew; save(); renderFollowing(); } // you looked — clear the New flag
   const active = document.querySelector(".screen.active");
   artistBackTo = (active && active.id) || "discover";
   audio.pause();
