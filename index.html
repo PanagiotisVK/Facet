@@ -156,6 +156,13 @@
   .insights { background: rgba(255,255,255,.05); backdrop-filter: blur(18px) saturate(1.5); -webkit-backdrop-filter: blur(18px) saturate(1.5); border: 1px solid var(--glass-brd); border-radius: 16px; padding: 14px 16px; margin: 0 4px 16px; }
   .insights .lbl { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
   .insights .val { font-size: 15px; font-weight: 700; margin-top: 4px; line-height: 1.4; }
+  /* Discovery scorecard — Sift's whole promise as one number */
+  .discstat { position: relative; text-align: center; background: linear-gradient(155deg, rgba(239,91,107,.16), rgba(255,255,255,.04)); border: 1px solid var(--glass-brd); border-radius: 16px; padding: 16px 16px 15px; margin: 0 4px 16px; overflow: hidden; }
+  .discstat .ds-big { font-size: 46px; font-weight: 900; line-height: 1; letter-spacing: -1px; background: linear-gradient(135deg, #fff, #ef5b6b); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .discstat .ds-cap { font-size: 13px; color: var(--accent2); margin-top: 6px; font-weight: 600; }
+  .discstat .ds-cap b { color: #fff; font-weight: 800; }
+  .discstat .ds-row { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; margin-top: 12px; font-size: 12px; font-weight: 600; color: var(--accent2); }
+  .discstat .ds-row b { color: #fff; font-weight: 800; }
   /* Genre "playlists" — click a bucket to filter your finds */
   .finds-genres { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 4px 14px; }
   .gchip { background: var(--card); border: 1px solid var(--glass-brd); color: var(--text); font-weight: 700; font-size: 13px; padding: 8px 13px; border-radius: 16px; cursor: pointer; transition: transform .08s, border-color .15s, background .15s; }
@@ -382,6 +389,11 @@
         <div class="fs-head">Following</div>
         <div class="fs-row" id="followRow"></div>
       </div>
+      <div class="discstat" id="discStat" style="display:none;">
+        <div class="ds-big"><span id="dsPct">0</span>%</div>
+        <div class="ds-cap">of what Sift played was <b>new to you</b></div>
+        <div class="ds-row" id="dsRow"></div>
+      </div>
       <div class="insights" id="insights" style="display:none;">
         <div class="lbl">Your taste is leaning toward</div>
         <div class="val" id="insightsVal"></div>
@@ -536,6 +548,8 @@ const state = {
   freshFinds: false,    // when true, champion smaller/emerging artists
   following: {},        // artistId -> {id,name,picture} you follow
   activitySeen: 0,      // ms timestamp of newest activity event you've seen
+  seenCount: 0,         // total songs judged (love+nope+heard) — for the discovery scorecard
+  heardCount: 0,        // songs you already knew ("Heard it") — the rest were new to you
   seedLabels: [],       // for display
 };
 
@@ -802,6 +816,8 @@ function save() {
       freshFinds: state.freshFinds,
       following: state.following,
       activitySeen: state.activitySeen,
+      seenCount: state.seenCount,
+      heardCount: state.heardCount,
     };
     localStorage.setItem(LS_KEY, JSON.stringify(data));
   } catch (e) { /* storage may be blocked; app still works in-session */ }
@@ -822,6 +838,8 @@ function load() {
     if (typeof d.freshFinds === "boolean") state.freshFinds = d.freshFinds;
     state.following = d.following || {};
     if (typeof d.activitySeen === "number") state.activitySeen = d.activitySeen;
+    if (typeof d.seenCount === "number") state.seenCount = d.seenCount;
+    if (typeof d.heardCount === "number") state.heardCount = d.heardCount;
     return Object.keys(state.artists).length > 0 || state.liked.length > 0;
   } catch (e) { return false; }
 }
@@ -1162,6 +1180,8 @@ function decide(kind, kin) {
     wasDisliked: state.disliked.has(track.artist),
     exploreBoostBefore: state.exploreBoost,
   };
+  state.seenCount = (state.seenCount || 0) + 1;          // every swipe counts toward the scorecard
+  if (kind === "heard") state.heardCount = (state.heardCount || 0) + 1; // the ones you already knew
   if (kind === "love") {
     ensureArtist(track.artistId, track.artist, 3, { origin: "loved" });
     state.liked.push(track); updateFinds();
@@ -1221,6 +1241,8 @@ function undoLast() {
   const art = state.artists[s.artistId];
   if (art && s.scoreBefore !== null) { art.score = s.scoreBefore; art.origin = s.originBefore; }
   state.exploreBoost = s.exploreBoostBefore;
+  state.seenCount = Math.max(0, (state.seenCount || 0) - 1);              // keep the scorecard honest
+  if (s.kind === "heard") state.heardCount = Math.max(0, (state.heardCount || 0) - 1);
   if (s.kind === "love") {
     const i = state.liked.findIndex(t => t.id === s.track.id);
     if (i >= 0) state.liked.splice(i, 1);
@@ -1362,8 +1384,22 @@ const SVC_ICONS = {
   sc: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.999 14.165c-.052 1.796-1.612 3.169-3.4 3.169h-8.18a.68.68 0 0 1-.675-.683V7.862a.747.747 0 0 1 .452-.724s.75-.513 2.333-.513a5.364 5.364 0 0 1 2.763.755 5.433 5.433 0 0 1 2.57 3.54c.282-.08.574-.121.868-.12.884 0 1.73.358 2.347.992s.948 1.49.922 2.373ZM10.721 8.421c.247 2.98.427 5.697 0 8.672a.264.264 0 0 1-.53 0c-.395-2.946-.22-5.718 0-8.672a.264.264 0 0 1 .53 0ZM9.072 9.448c.285 2.659.37 4.986-.006 7.655a.277.277 0 0 1-.55 0c-.331-2.63-.256-5.02 0-7.655a.277.277 0 0 1 .556 0Zm-1.663-.257c.27 2.726.39 5.171 0 7.904a.266.266 0 0 1-.532 0c-.38-2.69-.257-5.21 0-7.904a.266.266 0 0 1 .532 0Zm-1.647.77a26.108 26.108 0 0 1-.008 7.147.272.272 0 0 1-.542 0 27.955 27.955 0 0 1 0-7.147.275.275 0 0 1 .55 0Zm-1.67 1.769c.421 1.865.228 3.5-.029 5.388a.257.257 0 0 1-.514 0c-.21-1.858-.398-3.549 0-5.389a.272.272 0 0 1 .543 0Zm-1.655-.273c.388 1.897.26 3.508-.01 5.412-.026.28-.514.283-.54 0-.244-1.878-.347-3.54-.01-5.412a.283.283 0 0 1 .56 0Zm-1.668.911c.4 1.268.257 2.292-.026 3.572a.257.257 0 0 1-.514 0c-.241-1.262-.354-2.312-.023-3.572a.283.283 0 0 1 .563 0Z"/></svg>'
 };
 
+// Discovery scorecard: of everything Sift played, how much was new to you (you didn't tap "Heard it").
+function updateDiscStat() {
+  const ds = document.getElementById("discStat");
+  if (!ds) return;
+  const seen = state.seenCount || 0, heard = state.heardCount || 0;
+  if (seen < 5) { ds.style.display = "none"; return; }   // wait for enough swipes to be meaningful
+  const newToYou = Math.max(0, seen - heard);
+  const pct = Math.round(newToYou / seen * 100);
+  document.getElementById("dsPct").textContent = pct;
+  document.getElementById("dsRow").innerHTML =
+    '🎧 <b>' + seen + '</b> played &nbsp; ✨ <b>' + newToYou + '</b> never heard &nbsp; ♥ <b>' + state.liked.length + '</b> loved';
+  ds.style.display = "block";
+}
 function updateFinds() {
   document.getElementById("findsCount").textContent = state.liked.length;
+  updateDiscStat();           // Sift's promise as a number: % of songs that were new to you
   renderFollowing();          // show artists you follow (independent of your finds)
   checkFollowingReleases();   // once per session: flag any new releases
   const list = document.getElementById("findsList");
