@@ -686,13 +686,18 @@ async function fetchRelatedInto(a) {
 function pickArtistTracks(pool) {
   const list = (pool || []).filter(t => t && t.preview && t.artist);
   if (!list.length) return [];
-  let depth = [0.12, 0.4, 0.68][state.adventure] + (state.familiarity || 0) * 0.11;
-  if (state.freshFinds) depth = Math.max(depth, 0.6);
-  depth = Math.max(0, Math.min(0.85, depth));
-  const skip = Math.min(Math.floor(list.length * depth), Math.max(0, list.length - 2)); // never skip everything
+  // Reach past the biggest hits, but not so deep the songs stop sounding like the artist
+  // you actually came here for. Familiarity nudges deeper, but capped so it never lands
+  // in only-the-obscure-B-sides territory.
+  let depth = [0.1, 0.32, 0.55][state.adventure] + Math.min(state.familiarity || 0, 3) * 0.06;
+  if (state.freshFinds) depth = Math.max(depth, 0.5);
+  depth = Math.max(0, Math.min(0.7, depth));
+  const skip = Math.min(Math.floor(list.length * depth), Math.max(0, list.length - 3)); // never skip everything
   const deep = list.slice(skip);
   const out = [], bag = deep.slice();
-  while (out.length < 4 && bag.length) out.push(bag.splice(Math.floor(Math.random() * bag.length), 1)[0]); // sample, don't batch by rank
+  // At most 2 per artist — the queue de-clusters by artist anyway, and stacking one
+  // musician is exactly what makes the feed feel repetitive.
+  while (out.length < 2 && bag.length) out.push(bag.splice(Math.floor(Math.random() * bag.length), 1)[0]); // sample, don't batch by rank
   return out;
 }
 async function refill() {
@@ -716,12 +721,12 @@ async function refill() {
         const rid = S.related[Math.floor(Math.random() * S.related.length)];
         const RA = state.artists[rid];
         if (RA) { await fetchRelatedInto(RA);
-          targets = (RA.related || []).map(id => state.artists[id]).filter(Boolean).filter(a => !a.topPulled).slice(0, 2);
+          targets = (RA.related || []).map(id => state.artists[id]).filter(Boolean).filter(a => !a.topPulled).slice(0, 3);
         }
         reasonOverride = "Reaching further out…";
         if (state.exploreBoost > 0) state.exploreBoost--;
       } else {
-        targets = (S.related || []).map(id => state.artists[id]).filter(Boolean).filter(a => !a.topPulled).slice(0, 2);
+        targets = (S.related || []).map(id => state.artists[id]).filter(Boolean).filter(a => !a.topPulled).slice(0, 3);
       }
 
       if (!targets.length) { S.exhausted = true; continue; }
@@ -753,8 +758,8 @@ function orderQueue() {
     const pop = (t.rank || 0) / 1000000; // ~0..1 track popularity (Deezer rank)
     // Facet's whole promise is NEW songs, so lean away from the biggest hits in EVERY
     // mode (cozy least, adventurous most). "Heard it" history digs deeper still.
-    let bias = (adv === 0 ? -0.35 : adv === 2 ? -1.6 : -0.75) * pop;
-    bias -= fam * pop * 0.35;
+    let bias = (adv === 0 ? -0.35 : adv === 2 ? -1.1 : -0.7) * pop;
+    bias -= fam * pop * 0.25;
     if (fresh) {
       // Fresh Finds: champion smaller artists — favour low fan-count + low track rank.
       const fan = t.nbFan == null ? 0.5 : Math.min(1, t.nbFan / 800000);
@@ -763,6 +768,22 @@ function orderQueue() {
     t._ord = bias + Math.random() * (fresh ? 0.4 : 0.75); // less noise so the novelty signal actually wins
   });
   state.queue.sort((a, b) => b._ord - a._ord);
+  state.queue = spreadByArtist(state.queue);
+}
+// Greedy de-cluster: keep the score order, but never let two tracks by the same artist
+// sit back-to-back. This is what stops "the next song is the same musician again".
+function spreadByArtist(list) {
+  const remaining = list.slice();
+  const out = [];
+  let lastArtist = null;
+  while (remaining.length) {
+    let idx = remaining.findIndex(t => t.artistId !== lastArtist); // best-ranked track by a DIFFERENT artist
+    if (idx === -1) idx = 0; // only same-artist tracks left — unavoidable
+    const t = remaining.splice(idx, 1)[0];
+    out.push(t);
+    lastArtist = t.artistId;
+  }
+  return out;
 }
 
 /* ---------- Persistence ---------- */
@@ -1154,8 +1175,8 @@ function decide(kind, kin) {
   } else if (kind === "heard") {
     // already knew it → not novel enough; reach further out AND learn to dig deeper
     if (a) a.score -= 0.5;
-    state.exploreBoost = 2;
-    state.familiarity = Math.min(6, (state.familiarity || 0) + 0.6);
+    state.exploreBoost = 1; // one hop further, not a wholesale jump away from your taste
+    state.familiarity = Math.min(4, (state.familiarity || 0) + 0.4);
     orderQueue(); // re-rank what's already queued toward deeper cuts right away
     toast("Got it — digging deeper for stuff you haven't heard");
     flyOut("up", kin);
