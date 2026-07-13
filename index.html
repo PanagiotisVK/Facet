@@ -196,6 +196,8 @@
   .tc-top, .tc-row, .tc-foot { position: relative; z-index: 1; }
   .tc-arche { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 700; font-size: 26px; color: #fff; letter-spacing: -.01em; }
   .tc-sub { color: rgba(255,255,255,.82); font-weight: 600; font-size: 13px; margin-top: 2px; }
+  .tc-disc { display: inline-block; margin-top: 11px; font-size: 12.5px; font-weight: 700; color: #ffdbe0; background: rgba(239,91,107,.16); border: 1px solid rgba(239,91,107,.38); padding: 6px 11px; border-radius: 10px; }
+  .tc-disc b { color: #fff; font-weight: 900; }
   .tc-row { margin-top: 14px; }
   .tc-lbl { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,.75); font-weight: 800; margin-bottom: 7px; }
   .tc-chips { display: flex; flex-wrap: wrap; gap: 7px; }
@@ -411,6 +413,7 @@
         <div class="tc-top">
           <div class="tc-arche" id="tcArche">The Tastemaker</div>
           <div class="tc-sub" id="tcSub">0 finds · Balanced explorer</div>
+          <div class="tc-disc" id="tcDisc" style="display:none;">✨ <b id="tcDiscN">0</b>% of what Sift played was new to me</div>
         </div>
         <div class="tc-row"><div class="tc-lbl">Top genres</div><div class="tc-chips" id="tcGenres"></div></div>
         <div class="tc-row"><div class="tc-lbl">On repeat</div><div class="tc-chips" id="tcArtists"></div></div>
@@ -1521,6 +1524,15 @@ function updateFriends() {
   document.getElementById("tcSub").textContent = liked.length + (liked.length === 1 ? " find" : " finds") + " · " + advName + " explorer";
   document.getElementById("tcGenres").innerHTML = (topGenres.length ? topGenres : ["Eclectic"]).map(g => "<span>" + esc(g) + "</span>").join("");
   document.getElementById("tcArtists").innerHTML = (topArtists.length ? topArtists : ["Go find some songs!"]).map(a => "<span>" + esc(a) + "</span>").join("");
+  // Discovery highlight — the differentiator, right on the screenshot friends will share
+  const seen = state.seenCount || 0, heard = state.heardCount || 0;
+  const tcDisc = document.getElementById("tcDisc");
+  if (tcDisc) {
+    if (seen >= 5) {
+      document.getElementById("tcDiscN").textContent = Math.round((seen - heard) / seen * 100);
+      tcDisc.style.display = "inline-block";
+    } else tcDisc.style.display = "none";
+  }
   if (topGenres.length < 2 && liked.length) maybeFetchGenres(); // fill genres in the background
 }
 document.getElementById("btnInvite").onclick = async () => {
