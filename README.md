@@ -1,8 +1,8 @@
-# Facet
+# Sift
 
 **Discover music you've never heard — and will love.**
 
-Facet is a music discovery app that learns your taste and surfaces new songs from an
+Sift is a music discovery app that learns your taste and surfaces new songs from an
 artist-relationship graph. It has a fast swipe interface, 30-second previews that jump to
 the *best part* of each track, and an explicit **love / not-for-me / already-heard**
 feedback loop that sharpens recommendations as you go.

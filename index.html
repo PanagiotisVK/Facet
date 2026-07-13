@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Facet — Music Discovery</title>
+<title>Sift — Music Discovery</title>
 <link rel="icon" href="favicon.png" />
 <link rel="apple-touch-icon" href="favicon.png" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -317,7 +317,7 @@
 <div id="bgArt"></div>
 <div id="app">
   <header>
-    <div class="brand"><img class="logo" src="logo-mark.png" alt="Facet" /><div>FACET</div></div>
+    <div class="brand"><img class="logo" src="logo-mark.png" alt="Sift" /><div>SIFT</div></div>
     <button class="topbtn" id="btnSettings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h10"/><path d="M18 8h2"/><circle cx="16" cy="8" r="2.2"/><path d="M4 16h2"/><path d="M10 16h10"/><circle cx="8" cy="16" r="2.2"/></svg></button>
   </header>
 
@@ -325,7 +325,7 @@
     <!-- WELCOME BACK -->
     <section class="screen" id="welcome">
       <h1>Welcome back 👋</h1>
-      <p class="lead">Facet remembers your taste. Let's find you something new.</p>
+      <p class="lead">Sift remembers your taste. Let's find you something new.</p>
       <div class="welcome-stat" id="welcomeStat">0</div>
       <div style="color:var(--muted);font-weight:700;margin-top:4px;">finds so far</div>
       <div class="welcome-artists" id="welcomeArtists"></div>
@@ -335,7 +335,7 @@
     <!-- ONBOARDING -->
     <section class="screen" id="onboarding">
       <h1>What do you love?</h1>
-      <p class="lead">Pick a few genres and artists you already enjoy. Facet uses them as a launch pad — then follows your taste outward with every swipe.</p>
+      <p class="lead">Pick a few genres and artists you already enjoy. Sift uses them as a launch pad — then follows your taste outward with every swipe.</p>
       <div class="section-label">Genres — tap once to pick, tap again to weight it bigger (up to 🔥🔥🔥)</div>
       <input id="genreSearch" class="genre-search" placeholder="🔍 Search genres (e.g. afro, euro summer, jazz)…" autocomplete="off" />
       <div class="chips" id="genreChips"></div>
@@ -402,9 +402,9 @@
         </div>
         <div class="tc-row"><div class="tc-lbl">Top genres</div><div class="tc-chips" id="tcGenres"></div></div>
         <div class="tc-row"><div class="tc-lbl">On repeat</div><div class="tc-chips" id="tcArtists"></div></div>
-        <div class="tc-foot"><span class="tc-dot"></span> FACET</div>
+        <div class="tc-foot"><span class="tc-dot"></span> SIFT</div>
       </div>
-      <button class="btn-primary" id="btnInvite" style="margin-top:18px;">Invite a friend to Facet</button>
+      <button class="btn-primary" id="btnInvite" style="margin-top:18px;">Invite a friend to Sift</button>
 
       <!-- Logged out: create account / log in -->
       <div class="acct" id="acctBox" style="display:none;">
@@ -462,7 +462,7 @@
     <section class="screen" id="deckmode">
       <!-- intro: who sent it + a clear Start button (the first gesture, which unlocks audio) -->
       <div class="dm-intro" id="dmIntro">
-        <img src="logo-mark.png" class="logo" style="height:38px" alt="Facet" />
+        <img src="logo-mark.png" class="logo" style="height:38px" alt="Sift" />
         <div class="dm-intro-t" id="dmIntroTitle">A deck for you</div>
         <div class="dm-intro-s" id="dmIntroSub">swipe right on the ones you love</div>
         <button class="btn-primary" id="dmStart" style="max-width:280px;margin-top:22px;">Start swiping ▶</button>
@@ -513,7 +513,7 @@
 
 <script>
 /* ============================================================
-   FACET — Phase 2
+   SIFT — Phase 2
    Real discovery graph (related artists), 30-sec previews,
    persistent taste, "why this pick", smart exploration.
    Data: Deezer open API via JSONP. No server, no login, no key.
@@ -756,7 +756,7 @@ function orderQueue() {
   const fam = state.familiarity || 0;
   state.queue.forEach(t => {
     const pop = (t.rank || 0) / 1000000; // ~0..1 track popularity (Deezer rank)
-    // Facet's whole promise is NEW songs, so lean away from the biggest hits in EVERY
+    // Sift's whole promise is NEW songs, so lean away from the biggest hits in EVERY
     // mode (cozy least, adventurous most). "Heard it" history digs deeper still.
     let bias = (adv === 0 ? -0.35 : adv === 2 ? -1.1 : -0.7) * pop;
     bias -= fam * pop * 0.25;
@@ -1489,10 +1489,10 @@ function updateFriends() {
 }
 document.getElementById("btnInvite").onclick = async () => {
   const arche = document.getElementById("tcArche").textContent;
-  const text = 'I\'m "' + arche + '" on Facet 🎧 — a music discovery app that actually finds you songs you\'ve never heard and will love. Come compare tastes:';
+  const text = 'I\'m "' + arche + '" on Sift 🎧 — a music discovery app that actually finds you songs you\'ve never heard and will love. Come compare tastes:';
   const url = location.origin + location.pathname; // always matches wherever the app is hosted
   try {
-    if (navigator.share) await navigator.share({ title: "Facet", text, url });
+    if (navigator.share) await navigator.share({ title: "Sift", text, url });
     else { await navigator.clipboard.writeText(text + " " + url); toast("Invite copied to clipboard"); }
   } catch (e) { /* share cancelled */ }
 };
@@ -1668,7 +1668,7 @@ async function doSignup() {
   try {
     const { data, error } = await SB.auth.signUp({ email, password: pass });
     if (error) { acctMsg("authMsg", error.message, "err"); return; }
-    if (data.session) { me_session = data.session; acctMsg("authMsg", "Welcome to Facet! Pick a username 👇", "ok"); loadMe(); }
+    if (data.session) { me_session = data.session; acctMsg("authMsg", "Welcome to Sift! Pick a username 👇", "ok"); loadMe(); }
     else { acctMsg("authMsg", "Account made! Check your email to confirm it, then hit Log in.", "ok"); }
   } catch (e) { acctMsg("authMsg", "Network error — please try again.", "err"); }
 }
@@ -1761,9 +1761,9 @@ async function createDeckFromFinds() {
   } catch (e) { acctMsg("deckMsg", "Something went wrong — try again.", "err"); }
 }
 async function shareDeck(link, n) {
-  const text = "I made you a deck of " + n + " songs on Facet 🎧 — swipe through and tell me which you love:";
+  const text = "I made you a deck of " + n + " songs on Sift 🎧 — swipe through and tell me which you love:";
   try {
-    if (navigator.share) await navigator.share({ title: "Facet deck", text, url: link });
+    if (navigator.share) await navigator.share({ title: "Sift deck", text, url: link });
     else { await navigator.clipboard.writeText(text + " " + link); toast("Deck link copied!"); }
   } catch (e) { try { await navigator.clipboard.writeText(link); toast("Deck link copied!"); } catch (_) {} }
 }
@@ -1958,7 +1958,7 @@ async function dmFinish() {
   }
   const cont = document.createElement("button");
   cont.className = "btn-primary"; cont.style.maxWidth = "260px"; cont.style.margin = "18px auto 0";
-  cont.textContent = (me_profile ? "Back to Facet" : "Try Facet yourself →");
+  cont.textContent = (me_profile ? "Back to Sift" : "Try Sift yourself →");
   cont.onclick = () => { location.href = location.pathname; };
   endWrap.appendChild(cont);
 }
