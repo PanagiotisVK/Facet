@@ -690,6 +690,39 @@ async function searchTracks(q, limit) { const d = await deezer("search", { q: q,
 async function relatedArtists(id) { const d = await deezer("artist/" + id + "/related", { limit: 8 }); return (d && d.data) || []; }
 async function artistTop(id, limit) { const d = await deezer("artist/" + id + "/top", { limit: limit || 6 }); return (d && d.data) || []; }
 
+/* ---------- Apple Music exact-track lookup (iTunes Search API — free, no key, JSONP) ----------
+   Upgrades a Find's Apple button from "here's a search page" to "here's the actual song".
+   Apple's search ranks covers and remixes surprisingly high (searching Tame Impala's
+   "The Less I Know The Better" puts the real one 24th), so we pull 25 results and take the
+   first whose ARTIST genuinely matches — otherwise we keep the search link rather than
+   send someone to the wrong track. Only Apple gets this treatment: Spotify's API needs
+   auth, YouTube's needs a key with a tiny quota, and SoundCloud's has been shut to new
+   apps since 2019. */
+function itunes(term) {
+  return new Promise((resolve) => {
+    const cb = "sonar_it_" + (jsonpId++);
+    const timeout = setTimeout(() => { cleanup(); resolve(null); }, 9000);
+    function cleanup() { clearTimeout(timeout); delete window[cb]; if (script.parentNode) script.parentNode.removeChild(script); }
+    window[cb] = (data) => { cleanup(); resolve(data); };
+    const script = document.createElement("script");
+    script.src = "https://itunes.apple.com/search?term=" + encodeURIComponent(term) + "&entity=song&limit=25&callback=" + cb;
+    script.onerror = () => { cleanup(); resolve(null); };
+    document.body.appendChild(script);
+  });
+}
+const nameKey = s => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+// Returns the exact Apple Music URL, or "" when we can't be confident it's the right song.
+async function appleTrackUrl(t) {
+  const want = nameKey(t.artist);
+  if (!want) return "";
+  const res = await itunes(t.artist + " " + t.title);
+  for (const r of (res && res.results) || []) {
+    const got = nameKey(r.artistName);   // substring both ways catches collabs: "Fred again.. & Delilah Montagu"
+    if (got && r.trackViewUrl && (got.includes(want) || want.includes(got))) return r.trackViewUrl;
+  }
+  return "";
+}
+
 /* ---------- Artist graph helpers ---------- */
 function ensureArtist(id, name, score, meta) {
   if (!id) return null;
@@ -1555,7 +1588,7 @@ function updateFinds() {
     row.className = "find";
     const q = encodeURIComponent(t.artist + " " + t.title); // open/find the song in the user's app
     const sp = "https://open.spotify.com/search/" + q;
-    const ap = "https://music.apple.com/us/search?term=" + q;
+    const ap = t.appleUrl || ("https://music.apple.com/us/search?term=" + q); // exact song once resolved
     const yt = "https://www.youtube.com/results?search_query=" + q;   // regular YouTube — has remixes/edits
     const sc = "https://soundcloud.com/search?q=" + q;                 // SoundCloud — remix/edit home
     row.innerHTML = '<img src="' + (t.cover || "") + '" alt="" />' +
@@ -1579,7 +1612,29 @@ function updateFinds() {
     list.appendChild(row);
   });
 
-  maybeFetchGenres(); // fill in any missing genres in the background, then re-render
+  maybeFetchGenres();     // fill in any missing genres in the background, then re-render
+  maybeFetchAppleLinks(); // and upgrade the Apple buttons from search → exact song
+}
+
+// Resolve exact Apple links for Finds in the background. Sequential with a small gap —
+// Apple throttles bursts, and there's no hurry: the search link works until this lands.
+// appleUrl === undefined means "not looked up"; "" means "looked up, no confident match"
+// so we never re-query a song we've already failed to place.
+let fetchingApple = false;
+async function maybeFetchAppleLinks() {
+  if (fetchingApple) return;
+  const missing = state.liked.filter(t => t.appleUrl === undefined);
+  if (!missing.length) return;
+  fetchingApple = true;
+  let found = 0;
+  for (const t of missing.slice(0, 12)) {
+    try { t.appleUrl = await appleTrackUrl(t); } catch (_) { t.appleUrl = ""; }
+    if (t.appleUrl) found++;
+    await new Promise(r => setTimeout(r, 150));
+  }
+  fetchingApple = false;
+  save();
+  if (found) updateFinds(); // re-render with the exact links (also picks up the next batch)
 }
 
 // Look up each loved song's genre (via its Deezer album) so we can bucket them.
