@@ -322,14 +322,33 @@
   .ctrl.big svg { width: 27px; height: 27px; }
   .ctrl.small svg { width: 21px; height: 21px; }
   .playbtn svg { width: 16px; height: 16px; }
-  .adv-pill { display: inline-flex; align-items: center; gap: 6px; }
-  .adv-pill svg { width: 15px; height: 15px; }
   .undo-btn { display: inline-flex; align-items: center; gap: 5px; }
   .undo-btn svg { width: 13px; height: 13px; }
-  .adv-pill { align-self: center; margin-top: 3px; background: var(--glass); border: 1px solid var(--glass-brd); color: var(--text); font-weight: 600; font-size: 12px; padding: 7px 15px; border-radius: 999px; cursor: pointer; transition: transform .1s; }
-  .adv-pill:active { transform: scale(.96); }
-  .adv-pill.on { background: var(--accent); color: #0b0b0d; border-color: transparent; }
-  .pill-row { display: flex; gap: 8px; justify-content: center; align-self: center; flex-wrap: wrap; }
+  /* Tune sheet — all feed steering lives here, behind the sliders button top-right */
+  .topbtn { position: relative; }
+  .tune-dot { position: absolute; top: 5px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: none; }
+  .tune-dot.on { display: block; }
+  .tune-label { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); margin: 14px 0 8px; }
+  .tune-seg { display: flex; gap: 6px; }
+  .tune-seg button { flex: 1; background: var(--glass); border: 1px solid var(--glass-brd); color: var(--text); font-weight: 600; font-size: 12.5px; padding: 10px 4px; border-radius: 12px; cursor: pointer; }
+  .tune-seg button.on { background: var(--accent); color: #0b0b0d; border-color: transparent; }
+  .tune-fresh { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 10px; background: var(--glass); border: 1px solid var(--glass-brd); border-radius: 12px; padding: 10px 12px; cursor: pointer; color: var(--text); text-align: left; }
+  .tune-fresh .tf-star { font-size: 16px; }
+  .tune-fresh .tf-txt { flex: 1; display: flex; flex-direction: column; }
+  .tune-fresh .tf-txt b { font-size: 13.5px; }
+  .tune-fresh .tf-txt small { color: var(--muted); font-size: 11px; }
+  .tune-fresh .tf-state { font-weight: 700; font-size: 12px; color: var(--muted); }
+  .tune-fresh.on .tf-state { color: var(--accent); }
+  .tune-fresh.on { border-color: var(--accent); }
+  /* First-card coach — one-time, teaches the three decisions */
+  .coach-ov { position: absolute; inset: 0; z-index: 70; background: rgba(5,6,9,.82); display: flex; align-items: center; justify-content: center; padding: 26px; }
+  .coach { max-width: 320px; width: 100%; }
+  .coach h3 { color: var(--text); font-size: 19px; margin: 0 0 16px; }
+  .coach-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; color: var(--text); font-size: 14px; line-height: 1.35; }
+  .coach-row .ci { flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--line-2); }
+  .coach-row .ci svg { width: 18px; height: 18px; }
+  .coach-row small { display: block; color: var(--muted); }
+  .coach .btn-primary { margin-top: 6px; }
   /* Genre tuner sheet */
   .gsheet-ov { position: absolute; inset: 0; z-index: 60; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; }
   .gsheet { width: 100%; max-height: 74%; background: var(--bg2); border-radius: var(--r-lg) var(--r-lg) 0 0; border-top: 1px solid var(--glass-brd); padding: 16px 18px calc(20px + env(safe-area-inset-bottom)); box-shadow: var(--shadow-2); overflow-y: auto; animation: gsheetUp .22s cubic-bezier(.2,.7,.3,1); }
@@ -375,8 +394,6 @@
   .card .artist .artist-go { opacity: .55; margin-left: 6px; font-weight: 600; }
   /* Small phones (SE etc.): keep the Discover pills on one line so the card keeps its height */
   @media (max-width: 380px) {
-    .adv-pill { font-size: 11px; padding: 6px 11px; gap: 5px; }
-    .adv-pill svg { width: 13px; height: 13px; }
   }
 </style>
 </head>
@@ -385,7 +402,9 @@
 <div id="app">
   <header>
     <div class="brand"><img class="logo" src="logo-mark.png?v=3" alt="Sift" /><div>SIFT</div></div>
-    <button class="topbtn" id="btnSettings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h10"/><path d="M18 8h2"/><circle cx="16" cy="8" r="2.2"/><path d="M4 16h2"/><path d="M10 16h10"/><circle cx="8" cy="16" r="2.2"/></svg></button>
+    <!-- Tune: the one home for feed steering (dial + Fresh Finds + genres). The deck
+         itself only carries per-song actions. Dot = Fresh Finds is on. -->
+    <button class="topbtn" id="btnTune" aria-label="Tune your mix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h10"/><path d="M18 8h2"/><circle cx="16" cy="8" r="2.2"/><path d="M4 16h2"/><path d="M10 16h10"/><circle cx="8" cy="16" r="2.2"/></svg><span class="tune-dot" id="tuneDot"></span></button>
   </header>
 
   <main>
@@ -437,11 +456,6 @@
                a ✓ read as "approve" and got tapped as a like. -->
           <div class="ctrl-wrap"><button class="ctrl small heard" id="btnHeard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36L3 8"/><path d="M3 3v5h5"/><path d="M12 7.2v4.8l3.4 2.1"/></svg></button><div class="ctrl-label">Heard it</div></div>
           <div class="ctrl-wrap"><button class="ctrl big love" id="btnLove"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></button><div class="ctrl-label">Love</div></div>
-        </div>
-        <div class="pill-row">
-          <button class="adv-pill" id="advPill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M5 8h8"/><path d="M17 8h2"/><circle cx="15" cy="8" r="2"/><path d="M5 16h2"/><path d="M9 16h10"/><circle cx="7" cy="16" r="2"/></svg><span id="advLabel">Adventurous</span></button>
-          <button class="adv-pill" id="freshPill"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l1.7 5.3 5.3 1.7-5.3 1.7L12 16.5l-1.7-5.3L5 9.5l5.3-1.7z"/></svg><span>Fresh Finds</span></button>
-          <button class="adv-pill" id="genrePill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h10"/></svg><span>Genres</span></button>
         </div>
       </div>
     </section>
@@ -609,8 +623,28 @@
   <div class="gsheet-ov" id="genreSheet" style="display:none;">
     <div class="gsheet">
       <div class="gsheet-head"><span>Tune your mix</span><button class="gsheet-x" id="genreSheetX" aria-label="Close">✕</button></div>
+      <div class="tune-label">How far should Sift reach?</div>
+      <div class="tune-seg" id="tuneSeg">
+        <button data-adv="0">🛋️ Cozy</button><button data-adv="1">⚖️ Balanced</button><button data-adv="2">🧭 Adventurous</button>
+      </div>
+      <button class="tune-fresh" id="tuneFresh">
+        <span class="tf-star">✦</span>
+        <span class="tf-txt"><b>Fresh Finds</b><small>champion smaller artists</small></span>
+        <span class="tf-state" id="tuneFreshState">Off</span>
+      </button>
       <p class="gsheet-sub">Tap a genre to steer what Sift plays next. Your picks glow — tap again to ease off.</p>
       <div class="gsheet-chips" id="genreSheetChips"></div>
+    </div>
+  </div>
+
+  <!-- First-card coach — shown once, over the very first song -->
+  <div class="coach-ov" id="coachOv" style="display:none;">
+    <div class="coach">
+      <h3>Three ways to answer a song</h3>
+      <div class="coach-row"><span class="ci" style="color:var(--accent)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></span><div><b>Love it</b> — swipe right<small>Saved to your Finds. Sift plays more like it.</small></div></div>
+      <div class="coach-row"><span class="ci" style="color:var(--nope)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></span><div><b>Not for me</b> — swipe left<small>No hard feelings. Sift learns your edges.</small></div></div>
+      <div class="coach-row"><span class="ci" style="color:var(--heard)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36L3 8"/><path d="M3 3v5h5"/><path d="M12 7.2v4.8l3.4 2.1"/></svg></span><div><b>Heard it</b> — you already knew this one<small>Tells Sift you need something further out.</small></div></div>
+      <button class="btn-primary" id="coachGo">Start listening →</button>
     </div>
   </div>
 
@@ -1271,6 +1305,8 @@ function save() {
       daily: state.daily,
       streak: state.streak,
       lastDailyDone: state.lastDailyDone,
+      coached: state.coached,
+      tuneHinted: state.tuneHinted,
     };
     localStorage.setItem(LS_KEY, JSON.stringify(data));
   } catch (e) { /* storage may be blocked; app still works in-session */ }
@@ -1297,6 +1333,8 @@ function load() {
     if (d.daily && d.daily.date) state.daily = d.daily;
     if (typeof d.streak === "number") state.streak = d.streak;
     if (typeof d.lastDailyDone === "string") state.lastDailyDone = d.lastDailyDone;
+    if (d.coached) state.coached = 1;
+    if (d.tuneHinted) state.tuneHinted = 1;
     return Object.keys(state.artists).length > 0 || state.liked.length > 0;
   } catch (e) { return false; }
 }
@@ -1461,9 +1499,9 @@ function showScreen(name) {
 }
 document.querySelectorAll(".tab").forEach(b => b.onclick = () => showScreen(b.dataset.screen));
 // Header gear = shortcut to the You tab (account + app controls)
-document.getElementById("btnSettings").onclick = () => {
+document.getElementById("btnTune").onclick = () => {
   if (document.getElementById("tabbar").style.display === "none") { toast("Finish setup first"); return; }
-  showScreen("profile");
+  openGenreSheet();
 };
 document.getElementById("goProfileBtn").onclick = () => showScreen("profile");
 
@@ -1484,7 +1522,21 @@ function next() {
   if (!track) { renderEmpty(); return; }
   renderCard(track);
   playTrack(track);
+  maybeCoach();
 }
+// One-time guidance: first-ever card gets the three-decisions coach; users from
+// before the Tune consolidation get one toast pointing at the controls' new home.
+function maybeCoach() {
+  if (!state.coached && !(state.seenCount > 0)) { document.getElementById("coachOv").style.display = "flex"; return; }
+  if (!state.tuneHinted && state.seenCount > 0) {
+    state.tuneHinted = 1; save();
+    toast("Cozy dial, Fresh Finds & genres moved — sliders, top right");
+  }
+}
+document.getElementById("coachGo").onclick = () => {
+  document.getElementById("coachOv").style.display = "none";
+  state.coached = 1; state.tuneHinted = 1; save();
+};
 function renderCard(track) {
   deck.innerHTML = "";
   // Peek of the next card behind, for depth
@@ -1827,11 +1879,10 @@ document.getElementById("dailyPill").onclick = () => {
   else toast((DAILY_GOAL - state.daily.count) + " more for today's 20");
 };
 
-/* ---------- Adventurousness dial (compact pill — tap to cycle) ---------- */
+/* ---------- Tune sheet controls — adventurousness dial + Fresh Finds ---------- */
 const ADV_NAMES = ["Cozy", "Balanced", "Adventurous"];
 function applyAdventureUI() {
-  const l = document.getElementById("advLabel");
-  if (l) l.textContent = ADV_NAMES[state.adventure];
+  document.querySelectorAll("#tuneSeg button").forEach(b => b.classList.toggle("on", Number(b.dataset.adv) === state.adventure));
 }
 function setAdventure(n) {
   state.adventure = ((n % 3) + 3) % 3;
@@ -1842,10 +1893,14 @@ function setAdventure(n) {
   if (state.adventure === 2) state.exploreBoost = Math.max(state.exploreBoost, 2);
   orderQueue(); // re-order what's already queued so the change is felt right away
 }
-document.getElementById("advPill").onclick = () => setAdventure(state.adventure + 1);
+document.querySelectorAll("#tuneSeg button").forEach(b => b.onclick = () => setAdventure(Number(b.dataset.adv)));
 
-/* ---------- Fresh Finds — champion smaller / emerging artists ---------- */
-function applyFreshUI() { const p = document.getElementById("freshPill"); if (p) p.classList.toggle("on", !!state.freshFinds); }
+function applyFreshUI() {
+  const f = document.getElementById("tuneFresh");
+  f.classList.toggle("on", !!state.freshFinds);
+  document.getElementById("tuneFreshState").textContent = state.freshFinds ? "On" : "Off";
+  document.getElementById("tuneDot").classList.toggle("on", !!state.freshFinds); // header dot = fresh is on
+}
 function setFresh() {
   state.freshFinds = !state.freshFinds;
   applyFreshUI();
@@ -1854,7 +1909,7 @@ function setFresh() {
   if (state.freshFinds) state.exploreBoost = Math.max(state.exploreBoost, 2);
   orderQueue();
 }
-document.getElementById("freshPill").onclick = setFresh;
+document.getElementById("tuneFresh").onclick = setFresh;
 
 /* ---------- Genre tuner — steer the mix mid-session ---------- */
 // A picked genre isn't a filter — it seeds that genre's anchor artists into your graph
@@ -1907,9 +1962,8 @@ async function toggleGenreLive(g, chip) {
   save();
   toast(added ? ("Now mixing in " + g + " — swipe on") : ("Added " + g + " to your mix"));
 }
-function openGenreSheet() { renderGenreSheet(); document.getElementById("genreSheet").style.display = "flex"; }
+function openGenreSheet() { renderGenreSheet(); applyAdventureUI(); applyFreshUI(); document.getElementById("genreSheet").style.display = "flex"; }
 function closeGenreSheet() { document.getElementById("genreSheet").style.display = "none"; }
-document.getElementById("genrePill").onclick = openGenreSheet;
 document.getElementById("genreSheetX").onclick = closeGenreSheet;
 document.getElementById("genreSheet").onclick = (e) => { if (e.target.id === "genreSheet") closeGenreSheet(); };
 
