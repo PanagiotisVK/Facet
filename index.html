@@ -1502,10 +1502,16 @@ function showScreen(name) {
   if (name !== "discover" && name !== "deckmode") {
     if (!radioOn) audio.pause();                    // Finds radio keeps playing across these tabs
   } else if (name === "discover") {
-    findsPlayingId = null;                          // the deck owns the audio from here
-    if (radioOn) { radioStop(); if (state.current) playTrack(state.current); } // hand audio back to the deck
-    else if (state.current) safePlay();
-  } else if (name === "deckmode") { findsPlayingId = null; if (radioOn) radioStop(); } // deck mode takes the player over
+    // If Finds owned the audio (radio OR a single tapped song), reload the deck's own
+    // track — resuming would keep the Finds song playing under the card's slider.
+    const findsOwned = radioOn || findsPlayingId != null;
+    findsPlayingId = null;
+    if (radioOn) radioStop();
+    if (state.current) { if (findsOwned) playTrack(state.current); else safePlay(); }
+  } else if (name === "deckmode") {
+    if (findsPlayingId != null) { findsPlayingId = null; audio.pause(); }
+    if (radioOn) radioStop();                       // deck mode takes the player over
+  }
 
 }
 document.querySelectorAll(".tab").forEach(b => b.onclick = () => showScreen(b.dataset.screen));
