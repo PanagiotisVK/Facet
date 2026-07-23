@@ -655,7 +655,10 @@ const GENRE_ANCHORS = {
 const GENRES = Object.keys(GENRE_ANCHORS).sort(); // alphabetized for easy scanning
 // Broad genres shown by default so the initial list isn't overwhelming; the rest
 // (incl. specific/vibe ones like Euro Summer) appear via search or "Show all".
-const POPULAR_GENRES = new Set(["Pop", "Hip-Hop/Rap", "R&B/Soul", "Rock", "Indie", "Alternative", "Electronic", "House", "Techno", "Jazz", "Country", "Folk", "Metal", "Latin", "K-Pop", "Afrobeats", "Classical", "Reggae", "Greek", "Turkish", "Arabic", "Bollywood/Desi"]);
+// Default onboarding chips = broad/generic genres only. Regional genres (Greek, Turkish,
+// Arabic, Bollywood/Desi, etc.) stay defined in GENRE_ANCHORS so the search box + "Show all
+// genres" toggle still surface them for anyone who wants them.
+const POPULAR_GENRES = new Set(["Pop", "Hip-Hop/Rap", "R&B/Soul", "Rock", "Indie", "Alternative", "Electronic", "House", "Techno", "Jazz", "Country", "Folk", "Metal", "Latin", "K-Pop", "Afrobeats", "Classical", "Reggae"]);
 // A fitting emoji per genre, purely for visual appeal on the onboarding chips.
 const GENRE_EMOJI = {
   "Pop":"🎤","Indie":"🎸","Dream Pop":"💭","Bedroom Pop":"🛏️","Hyperpop":"⚡","Synthwave":"🌆","City Pop":"🌃",
