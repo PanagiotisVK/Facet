@@ -111,6 +111,9 @@
   .card.ghost { z-index: 1; transform: scale(.93) translateY(14px); filter: brightness(.55); pointer-events: none; }
   .undo-btn { position: absolute; top: 14px; right: 14px; z-index: 20; background: rgba(18,18,21,.82); border: 1px solid var(--glass-brd); color: var(--text); font-weight: 600; font-size: 12px; padding: 7px 13px; border-radius: 999px; cursor: pointer; box-shadow: var(--shadow-1); }
   .undo-btn:active { transform: scale(.94); }
+  .daily-pill { position: absolute; top: 14px; left: 14px; z-index: 20; background: rgba(18,18,21,.82); border: 1px solid var(--glass-brd); color: var(--muted); font-weight: 600; font-size: 12px; padding: 7px 13px; border-radius: 999px; cursor: pointer; box-shadow: var(--shadow-1); }
+  .daily-pill b { color: var(--text); font-weight: 600; }
+  .daily-pill:active { transform: scale(.94); }
   .card .art { flex: 1; background-size: cover; background-position: center; position: relative; }
   .card .art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(12,11,18,.96) 6%, rgba(12,11,18,.25) 42%, rgba(12,11,18,0) 62%); }
   .card .meta { position: absolute; left: 0; right: 0; bottom: 0; padding: 20px 22px; z-index: 2; }
@@ -205,6 +208,11 @@
   .find .mini svg { width: 15px; height: 15px; }
   .find button.mini.rm { background: transparent; color: var(--faint); }
   .find button.mini.rm:active { color: var(--danger); }
+  .find.playing { border-color: var(--line-2); background: var(--glass); }
+  .radio-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px; margin: 0 4px 12px; width: calc(100% - 8px); border: 1.5px solid var(--glass-brd); border-radius: var(--r-md); background: var(--card); color: var(--text); font-weight: 600; font-size: 14px; cursor: pointer; }
+  .radio-btn svg { width: 15px; height: 15px; display: block; }
+  .radio-btn.on { background: var(--accent); color: #0b0b0d; border-color: var(--accent); }
+  .radio-btn:active { transform: scale(.98); }
   .empty-finds { text-align:center; color: var(--muted); padding: 60px 20px; }
   .startover { display:block; width:100%; margin: 20px 0 0; padding: 12px; background: transparent; border: 1.5px solid #26262b; color: var(--muted); border-radius: var(--r-md); font-weight: 600; cursor: pointer; transition: border-color .2s, color .2s; }
   .startover.armed { border-color: var(--danger); color: var(--danger); }
@@ -213,6 +221,7 @@
   #friends h2, #profile h2 { margin: 8px 4px 4px; font-size: 22px; }
   #friends .sub, #profile .sub { color: var(--muted); margin: 0 4px 14px; font-size: 13px; }
   .about-note { text-align: center; color: var(--muted); font-size: 11px; letter-spacing: .4px; margin-top: 16px; }
+  .about-note a { color: var(--muted); text-decoration: underline; }
   .tastecard { position: relative; border-radius: var(--r-lg); padding: 20px 18px; margin: 0 4px; overflow: hidden; background: linear-gradient(155deg, #202024, #0c0c0e); border: 1px solid var(--glass-brd); box-shadow: var(--shadow-2); }
   .tc-top, .tc-row, .tc-foot { position: relative; z-index: 1; }
   .tc-arche { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 700; font-size: 26px; color: #fff; letter-spacing: -.01em; }
@@ -323,6 +332,13 @@
   .gsheet-sub { color: var(--muted); font-size: 12.5px; margin: 6px 0 14px; line-height: 1.4; }
   .gsheet-chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .gsheet-chips .gchip[disabled] { opacity: .5; }
+  .daily-sheet { text-align: center; }
+  .daily-kicker { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; }
+  .daily-big { font-size: 44px; font-weight: 700; letter-spacing: -0.03em; color: var(--text); line-height: 1.1; margin-top: 8px; }
+  .daily-sub { color: var(--muted); font-size: 14px; font-weight: 500; margin-top: 8px; }
+  .daily-sub b { color: var(--text); font-weight: 600; }
+  .daily-streak { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; background: var(--glass); border: 1px solid var(--glass-brd); border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 600; color: var(--text); }
+  .daily-actions { display: flex; gap: 10px; margin-top: 18px; }
   .freshtag { display: block; width: fit-content; font-size: 11px; letter-spacing: .5px; font-weight: 600; color: #0b0b0d; background: var(--accent); padding: 5px 11px; border-radius: 999px; margin-bottom: 8px; }
   .toast { position: absolute; left: 50%; bottom: 100px; transform: translateX(-50%); background: rgba(22,22,26,.96); border: 1px solid var(--glass-brd); color: var(--text); padding: 10px 16px; border-radius: var(--r-md); font-size: 13px; font-weight: 600; opacity: 0; transition: opacity .3s, transform .3s; z-index: 70; pointer-events: none; box-shadow: var(--shadow-1); }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
@@ -395,6 +411,7 @@
 
     <!-- DISCOVER -->
     <section class="screen" id="discover">
+      <button id="dailyPill" class="daily-pill" style="display:none" aria-label="Today's 20 progress"></button>
       <button id="btnUndo" class="undo-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6.5L4.5 11 9 15.5"/><path d="M4.5 11H14a5.5 5.5 0 0 1 0 11h-1.5"/></svg><span>Undo</span></button>
       <div class="deck" id="deck">
         <div class="loading" id="deckLoading"><div class="spinner"></div><div>Mapping your taste…</div></div>
@@ -437,6 +454,7 @@
         <div class="val" id="insightsVal"></div>
       </div>
       <div class="finds-genres" id="findsGenres"></div>
+      <button class="radio-btn" id="btnRadio" style="display:none;"></button>
       <div id="findsList"></div>
     </section>
 
@@ -525,7 +543,7 @@
       </div>
 
       <button class="startover" id="startOver">Start over — clear my taste</button>
-      <div class="about-note">Sift · early access · your taste lives on this device</div>
+      <div class="about-note">Sift · early access · your taste lives on this device · <a href="privacy.html">privacy</a></div>
     </section>
 
     <!-- DECK MODE (a friend swiping a shared deck) -->
@@ -586,6 +604,20 @@
     </div>
   </div>
 
+  <!-- Today's 20 — end-of-session summary -->
+  <div class="gsheet-ov" id="dailySheet" style="display:none;">
+    <div class="gsheet daily-sheet">
+      <div class="daily-kicker">Today's 20 · done</div>
+      <div class="daily-big" id="dailyBig">That's 20</div>
+      <div class="daily-sub" id="dailySub"></div>
+      <div><div class="daily-streak" id="dailyStreak"></div></div>
+      <div class="daily-actions">
+        <button class="btn-mini ghost" id="dailyFinds">See my Finds</button>
+        <button class="btn-mini" id="dailyKeep">Keep swiping</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 </div>
 
@@ -616,6 +648,9 @@ const state = {
   activitySeen: 0,      // ms timestamp of newest activity event you've seen
   seenCount: 0,         // total songs judged (love+nope+heard) — for the discovery scorecard
   heardCount: 0,        // songs you already knew ("Heard it") — the rest were new to you
+  daily: null,          // {date,count,loves,heard,celebrated} — Today's 20 progress
+  streak: 0,            // consecutive days the daily 20 was finished
+  lastDailyDone: "",    // date the daily 20 was last finished ("YYYY-MM-DD")
   seedLabels: [],       // for display
 };
 
@@ -923,6 +958,9 @@ function save() {
       activitySeen: state.activitySeen,
       seenCount: state.seenCount,
       heardCount: state.heardCount,
+      daily: state.daily,
+      streak: state.streak,
+      lastDailyDone: state.lastDailyDone,
     };
     localStorage.setItem(LS_KEY, JSON.stringify(data));
   } catch (e) { /* storage may be blocked; app still works in-session */ }
@@ -946,6 +984,9 @@ function load() {
     if (typeof d.activitySeen === "number") state.activitySeen = d.activitySeen;
     if (typeof d.seenCount === "number") state.seenCount = d.seenCount;
     if (typeof d.heardCount === "number") state.heardCount = d.heardCount;
+    if (d.daily && d.daily.date) state.daily = d.daily;
+    if (typeof d.streak === "number") state.streak = d.streak;
+    if (typeof d.lastDailyDone === "string") state.lastDailyDone = d.lastDailyDone;
     return Object.keys(state.artists).length > 0 || state.liked.length > 0;
   } catch (e) { return false; }
 }
@@ -1069,8 +1110,13 @@ function showScreen(name) {
   if (name === "finds") updateFinds(); // refresh buckets + kick off genre lookups
   if (name === "friends") { updateActivityBadge(); if (window._refreshSocial) window._refreshSocial(); } // cloud sync + clear unread
   if (name === "profile") { updateFriends(); if (window._refreshSocial) window._refreshSocial(); } // taste fingerprint lives here now
-  if (name !== "discover" && name !== "deckmode") audio.pause();
-  else if (name === "discover" && state.current) safePlay();
+  if (name !== "discover" && name !== "deckmode") {
+    if (!radioOn) audio.pause();                    // Finds radio keeps playing across these tabs
+  } else if (name === "discover") {
+    if (radioOn) { radioStop(); if (state.current) playTrack(state.current); } // hand audio back to the deck
+    else if (state.current) safePlay();
+  } else if (radioOn) radioStop();                  // deck mode takes the player over
+
 }
 document.querySelectorAll(".tab").forEach(b => b.onclick = () => showScreen(b.dataset.screen));
 // Header gear = shortcut to the You tab (account + app controls)
@@ -1090,6 +1136,7 @@ document.getElementById("resumeBtn").onclick = async () => {
 /* ---------- Deck ---------- */
 const deck = document.getElementById("deck");
 function next() {
+  updateDailyUI(); // keep the Today's 20 pill honest whenever a new card lands
   if (state.queue.length < 5 && !state.refilling) refill(); // top up in background
   const track = state.queue.shift();
   state.current = track;
@@ -1292,6 +1339,7 @@ function decide(kind, kin) {
   };
   state.seenCount = (state.seenCount || 0) + 1;          // every swipe counts toward the scorecard
   if (kind === "heard") state.heardCount = (state.heardCount || 0) + 1; // the ones you already knew
+  bumpDaily(kind);                                       // Today's 20 progress (celebrates at the goal)
   if (kind === "love") {
     ensureArtist(track.artistId, track.artist, 3, { origin: "loved" });
     state.liked.push(track); updateFinds();
@@ -1353,6 +1401,7 @@ function undoLast() {
   state.exploreBoost = s.exploreBoostBefore;
   state.seenCount = Math.max(0, (state.seenCount || 0) - 1);              // keep the scorecard honest
   if (s.kind === "heard") state.heardCount = Math.max(0, (state.heardCount || 0) - 1);
+  undoDaily(s.kind);                                                      // a finished 20 stays finished
   if (s.kind === "love") {
     const i = state.liked.findIndex(t => t.id === s.track.id);
     if (i >= 0) state.liked.splice(i, 1);
@@ -1370,6 +1419,72 @@ function undoLast() {
   toast("↩ Brought it back");
 }
 document.getElementById("btnUndo").onclick = undoLast;
+
+/* ---------- Today's 20 — a daily rhythm with a finish line ---------- */
+// Soft goal, never a wall: hitting 20 celebrates (once/day) and feeds a streak,
+// then you can keep swiping as long as you like.
+const DAILY_GOAL = 20;
+function dateStr(d) { d = d || new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function ensureDaily() {
+  if (!state.daily || state.daily.date !== dateStr()) state.daily = { date: dateStr(), count: 0, loves: 0, heard: 0, celebrated: false };
+}
+function bumpDaily(kind) {
+  ensureDaily();
+  const d = state.daily;
+  d.count++;
+  if (kind === "love") d.loves++;
+  if (kind === "heard") d.heard++;
+  if (d.count >= DAILY_GOAL && !d.celebrated) {
+    d.celebrated = true;
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    state.streak = (state.lastDailyDone === dateStr(y)) ? (state.streak || 0) + 1 : 1;
+    state.lastDailyDone = d.date;
+    setTimeout(showDailySheet, 750); // let the swipe fly out first
+  }
+  updateDailyUI();
+}
+function undoDaily(kind) {
+  ensureDaily();
+  const d = state.daily;
+  d.count = Math.max(0, d.count - 1);
+  if (kind === "love") d.loves = Math.max(0, d.loves - 1);
+  if (kind === "heard") d.heard = Math.max(0, d.heard - 1);
+  updateDailyUI();
+}
+function updateDailyUI() {
+  ensureDaily();
+  const p = document.getElementById("dailyPill");
+  if (!p) return;
+  p.style.display = "";
+  const d = state.daily;
+  if (d.celebrated) p.innerHTML = "Today <b>✓</b>" + ((state.streak || 0) > 1 ? " · 🔥" + state.streak : "");
+  else p.innerHTML = "Today <b>" + Math.min(d.count, DAILY_GOAL) + "</b>/" + DAILY_GOAL;
+}
+function showDailySheet() {
+  ensureDaily();
+  const d = state.daily;
+  const fresh = Math.max(0, d.count - d.heard);
+  document.getElementById("dailyBig").textContent =
+    d.loves > 0 ? d.loves + (d.loves === 1 ? " new find" : " new finds") : "That's 20";
+  document.getElementById("dailySub").innerHTML =
+    "<b>" + fresh + "</b> new to you · <b>" + d.loves + "</b> loved · " + d.count + " songs today";
+  document.getElementById("dailyStreak").textContent =
+    (state.streak || 1) > 1 ? "🔥 " + state.streak + " days in a row" : "🔥 Day one — come back tomorrow to start a streak";
+  document.getElementById("dailySheet").style.display = "flex";
+  audio.pause();
+}
+function hideDailySheet(goFinds) {
+  document.getElementById("dailySheet").style.display = "none";
+  if (goFinds) showScreen("finds");
+  else if (state.current) safePlay();
+}
+document.getElementById("dailyKeep").onclick = () => hideDailySheet(false);
+document.getElementById("dailyFinds").onclick = () => hideDailySheet(true);
+document.getElementById("dailyPill").onclick = () => {
+  ensureDaily();
+  if (state.daily.celebrated) showDailySheet();
+  else toast((DAILY_GOAL - state.daily.count) + " more for today's 20");
+};
 
 /* ---------- Adventurousness dial (compact pill — tap to cycle) ---------- */
 const ADV_NAMES = ["Cozy", "Balanced", "Adventurous"];
@@ -1574,7 +1689,9 @@ function updateFinds() {
   const gwrap = document.getElementById("findsGenres");
   if (!state.liked.length) {
     list.innerHTML = '<div class="empty-finds">No finds yet.<br>Swipe right on something you love.</div>';
-    insights.style.display = "none"; gwrap.innerHTML = ""; return;
+    insights.style.display = "none"; gwrap.innerHTML = "";
+    document.getElementById("btnRadio").style.display = "none";
+    return;
   }
 
   // insights: top artists among your finds
@@ -1603,9 +1720,12 @@ function updateFinds() {
   // list (filtered by the selected genre playlist)
   const shown = findsFilter ? byGenre[findsFilter] : state.liked;
   list.innerHTML = "";
+  document.getElementById("btnRadio").style.display = "";
+  radioLabel();
   [...shown].reverse().forEach(t => {
     const row = document.createElement("div");
     row.className = "find";
+    row._tid = t.id; // lets the radio highlight the row it's playing
     const q = encodeURIComponent(t.artist + " " + t.title); // open/find the song in the user's app
     const sp = "https://open.spotify.com/search/" + q;
     const ap = t.appleUrl || ("https://music.apple.com/us/search?term=" + q); // exact song once resolved
@@ -1622,6 +1742,11 @@ function updateFinds() {
         '<a class="sc" href="' + sc + '" target="_blank" rel="noopener" title="Search on SoundCloud" aria-label="SoundCloud">' + SVC_ICONS.sc + '</a>' +
       '</div>';
     row.querySelector(".mini").onclick = async () => {
+      if (radioOn) {                                 // radio running → jump it to this song
+        const i = radioList.findIndex(x => x.id === t.id);
+        if (i >= 0) { radioPlay(i); return; }
+        radioStop();                                 // song isn't in the playing list → back to single play
+      }
       const tok = ++audioToken; audio.onloadedmetadata = null; audio.loop = false;
       const url = await resolvePreview(t);           // stored preview may have expired → refresh it
       if (tok !== audioToken) return;
@@ -1639,6 +1764,7 @@ function updateFinds() {
     list.appendChild(row);
   });
 
+  markPlayingRow();       // re-highlight the radio's row after a re-render
   maybeFetchGenres();     // fill in any missing genres in the background, then re-render
   maybeFetchAppleLinks(); // and upgrade the Apple buttons from search → exact song
 }
@@ -1692,6 +1818,54 @@ function maybeFetchGenres() {
   Promise.all(missing.slice(0, 25).map(t => ensureGenre(t).catch(() => { t.genre = "Mixed"; })))
     .then(() => { fetchingGenres = false; save(); updateFinds(); updateFriends(); });
 }
+
+/* ---------- Finds radio — lean-back play-through of everything you loved ---------- */
+// Plays the visible list (so a genre bucket becomes a genre radio). Survives tab
+// switches to Finds/Friends/You; going back to Discover hands audio to the deck.
+let radioOn = false, radioList = [], radioIdx = -1;
+const ICON_RADIO_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.4c0-.8.9-1.3 1.6-.9l9 6.6c.6.4.6 1.4 0 1.8l-9 6.6c-.7.4-1.6-.1-1.6-.9z"/></svg>';
+const ICON_RADIO_STOP = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+function currentFindsList() {
+  const l = findsFilter ? state.liked.filter(t => t.genre === findsFilter) : state.liked;
+  return [...l].reverse(); // newest first, same order as the visible list
+}
+function radioLabel() {
+  const b = document.getElementById("btnRadio");
+  if (!b) return;
+  if (radioOn) { b.classList.add("on"); b.innerHTML = ICON_RADIO_STOP + "<span>Stop</span>"; }
+  else {
+    b.classList.remove("on");
+    const n = currentFindsList().length;
+    b.innerHTML = ICON_RADIO_PLAY + "<span>Play " + (findsFilter ? esc(findsFilter) : "all") + " (" + n + ")</span>";
+  }
+}
+function markPlayingRow() {
+  const id = radioOn && radioList[radioIdx] ? radioList[radioIdx].id : null;
+  document.querySelectorAll("#findsList .find").forEach(el => el.classList.toggle("playing", !!id && el._tid === id));
+}
+async function radioPlay(i) {
+  if (i < 0 || i >= radioList.length) { radioStop(); return; }
+  radioIdx = i;
+  markPlayingRow();
+  const t = radioList[i];
+  const tok = ++audioToken; audio.onloadedmetadata = null; audio.loop = false;
+  const url = await resolvePreview(t);        // stored preview may have expired → refresh it
+  if (tok !== audioToken || !radioOn) return; // something else took the player meanwhile
+  audio.src = url; try { audio.currentTime = 0; } catch (_) {}
+  safePlay();
+}
+function radioStop() {
+  if (!radioOn) return;
+  radioOn = false; radioIdx = -1;
+  audio.pause(); markPlayingRow(); radioLabel();
+}
+audio.addEventListener("ended", () => { if (radioOn) radioPlay(radioIdx + 1); });
+document.getElementById("btnRadio").onclick = () => {
+  if (radioOn) { radioStop(); return; }
+  radioList = currentFindsList();
+  if (!radioList.length) return;
+  radioOn = true; radioLabel(); radioPlay(0);
+};
 
 /* ---------- Friends / Taste Fingerprint ---------- */
 function computeArchetype(likedLen, distinctGenres, adventure) {
