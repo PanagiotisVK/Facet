@@ -833,6 +833,30 @@ function itunesApi(path, params) {  // JSONP like deezer() — works everywhere,
     document.body.appendChild(script);
   });
 }
+// Genre kinship via MusicBrainz tags — the antidote to co-listening drift (everyone
+// co-listens with global pop stars, so the raw similar-artists list skews mainstream
+// and cross-genre; genuine genre tags pull each neighborhood back on-genre).
+const TAG_SKIP = /^(english|american|british|uk|usa|canadian|australian|irish|seen live|[a-z ]*vocalists|\d{2,4}s)$/;   // languages/nationalities/meta — not genres
+const TAG_GENERIC = new Set(["pop", "rock", "hip hop", "rap", "electronic", "dance", "r&b", "rnb", "soul", "indie", "alternative"]);  // umbrella genres half the catalog wears
+const normTag = t => t.toLowerCase().replace(/-/g, " ").trim();
+async function mbTagsFor(mbids) {  // ONE batched arid:() search fills tags for a whole neighborhood
+  const need = mbids.filter(id => MBID_RE.test(id) && !(lbArtist[id] && lbArtist[id].tags));
+  if (need.length) {
+    const d = await mbApi("artist/", { query: "arid:(" + need.join(" OR ") + ")", fmt: "json", limit: 100 });
+    const got = {};
+    ((d && d.artists) || []).forEach(a => { got[a.id] = (a.tags || []).sort((x, y) => y.count - x.count).slice(0, 10).map(t => normTag(t.name)).filter(t => !TAG_SKIP.test(t)); });
+    need.forEach(id => { (lbArtist[id] = lbArtist[id] || {}).tags = got[id] || []; });
+    lbCacheSave();
+  }
+  const out = {};
+  mbids.forEach(id => { out[id] = (lbArtist[id] && lbArtist[id].tags) || []; });
+  return out;
+}
+function tagsCompatible(src, cand) {
+  if (!src.length || !cand.length) return true;   // untagged (usually small) artists get the benefit of the doubt
+  const shared = cand.filter(t => src.includes(t));
+  return shared.some(t => !TAG_GENERIC.has(t)) || shared.length >= 2;  // a specific shared genre, or 2+ umbrella ones
+}
 async function lbListeners(mbid) {  // artist listener count — this provider's nb_fan
   if (!MBID_RE.test(mbid || "")) return 0;
   const m = lbArtist[mbid] = lbArtist[mbid] || {};
@@ -887,11 +911,18 @@ const AppleLBProvider = {
   async searchArtist(name) {
     let mbid = lbNames[nameKey(name)], aName = null;
     if (!mbid) {
-      let d = await mbApi("artist/", { query: 'artist:"' + name + '"', fmt: "json", limit: 3 });
+      let d = await mbApi("artist/", { query: 'artist:"' + name + '"', fmt: "json", limit: 5 });
       let list = (d && d.artists) || [];
-      if (!list.length) { d = await mbApi("artist/", { query: name, fmt: "json", limit: 3 }); list = (d && d.artists) || []; }
+      if (!list.length) { d = await mbApi("artist/", { query: name, fmt: "json", limit: 5 }); list = (d && d.artists) || []; }
       const want = nameKey(name);
-      const a = list.find(x => nameKey(x.name) === want) || list[0];
+      // MB ranks by text relevance, not fame — with several same-named artists
+      // ("Rema", "BTS"…), let real listener counts pick the one people mean.
+      const exact = list.filter(x => nameKey(x.name) === want);
+      let a = exact[0] || list[0];
+      if (exact.length > 1) {
+        const counts = await Promise.all(exact.map(x => lbListeners(x.id)));
+        a = exact[counts.indexOf(Math.max.apply(null, counts))];
+      }
       if (!a) return null;
       mbid = a.id; aName = a.name;
       lbNames[nameKey(name)] = mbid;
@@ -909,11 +940,15 @@ const AppleLBProvider = {
     if (!MBID_RE.test(id || "")) return [];
     const d = await lbApi("https://labs.api.listenbrainz.org/similar-artists/json?artist_mbids=" + encodeURIComponent(id) + "&algorithm=" + LB_ALG);
     const all = Array.isArray(d) ? d : [];
-    // The list is ranked by co-listening volume, and everyone co-listens with famous
-    // artists — always taking the top 8 (which the engine then explores first-3-first)
-    // made every neighborhood mainstream. Sample 8 from the top 30, similarity-weighted:
-    // strong matches still dominate, but mid-list artists actually get their turn.
-    const pool = all.slice(0, 30), picked = [];
+    // Two defenses against co-listening drift: (1) genre-tag filter — a neighbor must
+    // be genre-kin to the source, which is what cuts The Weeknd/Bieber/Ariana out of
+    // Burna Boy's "similar" list; (2) similarity-weighted sampling from the survivors
+    // instead of always taking the top of a ranked list, so neighborhoods vary.
+    const cand = all.slice(0, 60);
+    const tags = await mbTagsFor([id].concat(cand.map(r => r.artist_mbid)));
+    let pool = cand.filter(r => tagsCompatible(tags[id], tags[r.artist_mbid])).slice(0, 40);
+    if (pool.length < 3) pool = cand.slice(0, 10);  // thin or untagged graph: better off-genre than starved
+    const picked = [];
     while (picked.length < 8 && pool.length) {
       let x = Math.random() * pool.reduce((s, r) => s + (r.score || 1), 0);
       let idx = pool.length - 1;
