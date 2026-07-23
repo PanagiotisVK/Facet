@@ -180,14 +180,14 @@
      the preview's REAL loudness once analyzeHot decodes it; until then a per-song
      placeholder shape stands in. Still fully draggable. */
   .seek { position: relative; flex: 1; height: 30px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
-  .wave { position: absolute; inset: 0; display: flex; align-items: center; gap: 2px; }
-  /* --d staggers each bar's height transition so a new song's wave ripples in
-     left-to-right; color fades trail the continuously-moving fill edge */
-  .wave i { flex: 1; min-width: 2px; height: 26%; border-radius: 2px; background: rgba(255,255,255,.16); transform-origin: center; transition: height .5s cubic-bezier(.22,.9,.35,1) var(--d, 0s), background-color .22s ease; }
-  .wave i.on { background: var(--accent); }
-  .player.live .wave i.cur { animation: wavepulse .8s ease-in-out infinite; }
-  @keyframes wavepulse { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.4); } }
-  @media (prefers-reduced-motion: reduce) { .player.live .wave i.cur { animation: none; } .wave i { transition: none; } }
+  /* SoundCloud-style fill: two identical waves stacked — grey below, accent above —
+     and the accent one is revealed by a clip edge that glides continuously, cutting
+     straight through bars instead of lighting them up one at a time. */
+  .wave { position: absolute; inset: 0; display: flex; align-items: center; gap: 1.5px; pointer-events: none; }
+  .wave i { flex: 1; min-width: 1px; height: 26%; border-radius: 1.5px; background: rgba(255,255,255,.16); transition: height .5s cubic-bezier(.22,.9,.35,1) var(--d, 0s); }
+  .wave.on { clip-path: inset(0 100% 0 0); will-change: clip-path; }
+  .wave.on i { background: var(--accent); }
+  @media (prefers-reduced-motion: reduce) { .wave i { transition: none; } }
 
   .loading, .empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--muted); text-align:center; padding: 0 30px; }
   .spinner { width: 44px; height: 44px; border-radius: 50%; border: 4px solid #26262b; border-top-color: var(--accent); animation: spin 1s linear infinite; }
@@ -476,7 +476,7 @@
       <div class="dock">
         <div class="player">
           <button class="playbtn" id="btnPlay" aria-label="Play or pause"></button>
-          <div class="seek" id="seek"><div class="wave" id="wave"></div></div>
+          <div class="seek" id="seek"><div class="wave" id="wave"></div><div class="wave on" id="waveOn"></div></div>
           <div class="time" id="timeLabel">0:00</div>
         </div>
         <div class="controls">
@@ -1639,14 +1639,15 @@ function safePlay() { const p = audio.play(); if (p && p.catch) p.catch(() => {}
 
 // Draggable waveform scrubber — scrub to any part of the 30s preview yourself.
 const seekEl = document.getElementById("seek");
-const waveEl = document.getElementById("wave");
-const WAVE_N = 40;
-if (waveEl) for (let i = 0; i < WAVE_N; i++) {
+const WAVE_N = 64;
+// Two identical bar layers: grey base + accent overlay revealed by a moving clip
+const waveEls = [document.getElementById("wave"), document.getElementById("waveOn")].filter(Boolean);
+for (const w of waveEls) for (let i = 0; i < WAVE_N; i++) {
   const b = document.createElement("i");
-  b.style.setProperty("--d", (i * 12) + "ms");      // ripple: bars morph in order, not at once
-  waveEl.appendChild(b);
+  b.style.setProperty("--d", (i * 7) + "ms");       // ripple: bars morph in order, not at once
+  w.appendChild(b);
 }
-const waveBars = waveEl ? Array.from(waveEl.children) : [];
+const waveOnEl = document.getElementById("waveOn");
 // Stable per-song placeholder shape (seeded by track id) shown until the real
 // envelope is decoded — so the bar never visibly "pops" from flat to wavy twice.
 function waveFallback(id) {
@@ -1659,25 +1660,15 @@ function waveFallback(id) {
 }
 function renderWave(track) {
   const shape = track ? (waveShapes[track.id] || waveFallback(track.id)) : null;
-  waveBars.forEach((b, i) => {
-    b.style.height = (shape ? 14 + shape[i] * 86 : 26) + "%";
-    b.classList.remove("on", "cur");
-    b.style.background = "";
-  });
+  for (const w of waveEls) {
+    const kids = w.children;
+    for (let i = 0; i < kids.length; i++) kids[i].style.height = (shape ? 10 + shape[i] * 90 : 26) + "%";
+  }
 }
 let scrubbing = false;
 function updateSeekUI(frac) {
   frac = Math.max(0, Math.min(1, frac || 0));
-  const cut = frac * WAVE_N, full = Math.floor(cut), curIdx = Math.min(WAVE_N - 1, full);
-  waveBars.forEach((b, i) => {
-    b.classList.toggle("on", i < full);
-    b.classList.toggle("cur", frac > 0 && i === curIdx);
-    // The boundary bar fills partially so the edge glides instead of stepping
-    if (frac > 0 && i === curIdx && cut < WAVE_N) {
-      const p = ((cut - full) * 100).toFixed(1);
-      b.style.background = "linear-gradient(90deg, var(--accent) " + p + "%, rgba(255,255,255,.16) " + p + "%)";
-    } else b.style.background = "";
-  });
+  if (waveOnEl) waveOnEl.style.clipPath = "inset(0 " + ((1 - frac) * 100).toFixed(3) + "% 0 0)";
 }
 // timeupdate only fires ~4x/sec — too chunky for a moving fill edge. While audio
 // plays, drive the wave from the frame clock instead.
@@ -1715,11 +1706,6 @@ function updatePlayIcon() { const b = document.getElementById("btnPlay"); if (b)
 updatePlayIcon();
 audio.addEventListener("play", updatePlayIcon);
 audio.addEventListener("pause", updatePlayIcon);
-// The playhead bar only pulses while sound is actually coming out
-const playerEl = document.querySelector(".player");
-function updateLive() { if (playerEl) playerEl.classList.toggle("live", !audio.paused); }
-audio.addEventListener("play", updateLive);
-audio.addEventListener("pause", updateLive);
 document.getElementById("btnPlay").onclick = () => { if (audio.paused) safePlay(); else audio.pause(); };
 
 // Analyze a 30s preview's energy → return the start time (sec) of its most
