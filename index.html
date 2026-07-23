@@ -149,6 +149,13 @@
   .ctrl.heard { color: var(--heard); }
   .ctrl.replay { color: var(--text); }
   .ctrl-label { text-align:center; font-size:10.5px; color:var(--muted); margin-top:3px; font-weight:600; letter-spacing:.2px; }
+  /* Live artist suggestions under the onboarding search box */
+  .artist-row { position: relative; }
+  .artist-sug { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40; background: #15171d; border: 1px solid var(--line-2); border-radius: 12px; overflow: hidden; display: none; box-shadow: 0 12px 32px rgba(0,0,0,.55); }
+  .artist-sug .sug-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; }
+  .artist-sug .sug-row:active { background: rgba(255,255,255,.07); }
+  .artist-sug img, .artist-sug .sug-ph { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: #242833; flex-shrink: 0; }
+  .artist-sug .sug-row span:last-child { font-size: 14px; color: var(--text); }
   .ctrl-wrap { display:flex; flex-direction:column; align-items:center; }
   .hint { text-align: center; color: var(--muted); font-size: 12px; padding: 2px 0 4px; }
   /* Bottom control dock — blends the player + swipe buttons into one panel */
@@ -195,15 +202,15 @@
   .find .fmeta .a { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* "Open in your app" service links — search the song in Spotify / Apple / YouTube */
   .find .svc { flex-basis: 100%; display: flex; gap: 6px; }
-  .find .svc a { flex: 1; text-align: center; text-decoration: none; font-weight: 700; font-size: 10.5px; padding: 8px 3px; border-radius: 10px; white-space: nowrap; }
+  .find .svc a, .find .svc button { flex: 1; text-align: center; text-decoration: none; font-weight: 700; font-size: 10.5px; padding: 8px 3px; border-radius: 10px; white-space: nowrap; cursor: pointer; }
   /* Platform buttons: white logo on the solid trademark colour + subtle white border — clean & poppy */
-  .find .svc a { display: flex; align-items: center; justify-content: center; padding: 10px 3px; color: #fff; border: 1px solid rgba(255,255,255,.32); box-shadow: 0 2px 8px rgba(0,0,0,.3); transition: filter .15s; }
-  .find .svc a svg { width: 18px; height: 18px; display: block; }
+  .find .svc a, .find .svc button { display: flex; align-items: center; justify-content: center; padding: 10px 3px; color: #fff; border: 1px solid rgba(255,255,255,.32); box-shadow: 0 2px 8px rgba(0,0,0,.3); transition: filter .15s; }
+  .find .svc a svg, .find .svc button svg { width: 18px; height: 18px; display: block; }
   .find .svc a.sp { background: #1db954; }
   .find .svc a.ap { background: #fa2d48; }
   .find .svc a.yt { background: #ff0000; }
-  .find .svc a.sc { background: #ff5500; }
-  .find .svc a:active { filter: brightness(.85); }
+  .find .svc button.sh { background: #333a48; }   /* share — neutral ink, not a brand */
+  .find .svc a:active, .find .svc button:active { filter: brightness(.85); }
   .find button.mini { border: 0; background: var(--glass); color: var(--text); width: 40px; height: 40px; border-radius: var(--r-sm); cursor: pointer; flex-shrink:0; display: grid; place-items: center; }
   .find .mini svg { width: 15px; height: 15px; }
   .find button.mini.rm { background: transparent; color: var(--faint); }
@@ -404,6 +411,7 @@
       <div class="artist-row">
         <input id="artistInput" placeholder="Type an artist and hit +" autocomplete="off" />
         <button id="addArtist">+</button>
+        <div class="artist-sug" id="artistSug"></div>
       </div>
       <div class="chips" id="artistChips" style="margin-top:12px;"></div>
       <div class="start-bar"><button class="btn-primary" id="startBtn" disabled>Pick at least 2 to start</button></div>
@@ -765,6 +773,11 @@ const DeezerProvider = {
   freshFanCap: 40000,
   fanNorm: 800000,
   async searchArtist(name) { const d = await deezer("search/artist", { q: name, limit: 1 }); return d && d.data && d.data[0]; },
+  // Live artist suggestions for the onboarding search box: [{name, pic}], display-only.
+  async suggestArtists(q) {
+    const d = await deezer("search/artist", { q: q, limit: 5 });
+    return ((d && d.data) || []).map(a => ({ name: a.name, pic: a.picture_medium || a.picture || "" }));
+  },
   async searchTracks(q, limit) { const d = await deezer("search", { q: q, limit: limit || 20 }); return (d && d.data) || []; },
   async relatedArtists(id) { const d = await deezer("artist/" + id + "/related", { limit: 8 }); return (d && d.data) || []; },
   async artistTop(id, limit) { const d = await deezer("artist/" + id + "/top", { limit: limit || 6 }); return (d && d.data) || []; },
@@ -937,6 +950,20 @@ const AppleLBProvider = {
   async searchTracks(q, limit) {
     const d = await itunesApi("search", { term: q, entity: "song", limit: limit || 20 });
     return ((d && d.results) || []).filter(r => r.trackId && r.previewUrl).map((r, i) => this._track(r, null, 400000, i));
+  },
+  // Suggestions with pictures despite iTunes having no artist images: one song search,
+  // grouped by artist, each artist wearing their top result's album art.
+  async suggestArtists(q) {
+    const d = await itunesApi("search", { term: q, entity: "song", limit: 25 });
+    const seen = {}, out = [];
+    for (const r of ((d && d.results) || [])) {
+      const k = nameKey(r.artistName);
+      if (!k || seen[k]) continue;
+      seen[k] = 1;
+      out.push({ name: r.artistName, pic: (r.artworkUrl100 || "").replace("100x100bb", "250x250bb") });
+      if (out.length >= 5) break;
+    }
+    return out;
   },
   async relatedArtists(id) {
     if (!MBID_RE.test(id || "")) return [];
@@ -1323,9 +1350,41 @@ document.getElementById("toggleGenres").onclick = () => {
   refreshGenreVisibility();
 };
 refreshGenreVisibility(); // start with just the popular set
-document.getElementById("addArtist").onclick = addArtistChip;
+document.getElementById("addArtist").onclick = () => addArtistChip();
 document.getElementById("artistInput").addEventListener("keydown", e => { if (e.key === "Enter") addArtistChip(); });
-function addArtistChip() {
+
+// Live suggestions while typing — pictures make "is this the right artist?" instant.
+const artistSug = document.getElementById("artistSug");
+let sugTimer = null, sugSeq = 0;
+function hideSug() { artistSug.style.display = "none"; artistSug.innerHTML = ""; }
+document.getElementById("artistInput").addEventListener("input", () => {
+  const q = document.getElementById("artistInput").value.trim();
+  clearTimeout(sugTimer);
+  if (q.length < 2) { hideSug(); return; }
+  sugTimer = setTimeout(async () => {
+    const seq = ++sugSeq;
+    let list = [];
+    try { list = PROVIDER.suggestArtists ? await PROVIDER.suggestArtists(q) : []; } catch (_) {}
+    if (seq !== sugSeq) return;                                   // a newer keystroke superseded us
+    if (document.getElementById("artistInput").value.trim().length < 2) return;
+    if (!list.length) { hideSug(); return; }
+    artistSug.innerHTML = "";
+    list.forEach(s => {
+      const r = document.createElement("div");
+      r.className = "sug-row";
+      r.innerHTML = (s.pic ? '<img src="' + s.pic + '" alt="" />' : '<span class="sug-ph"></span>') + "<span>" + esc(s.name) + "</span>";
+      r.onmousedown = e => e.preventDefault();                    // keep input focus so blur doesn't eat the tap
+      r.onclick = () => { document.getElementById("artistInput").value = s.name; addArtistChip(s.pic); };
+      artistSug.appendChild(r);
+    });
+    artistSug.style.display = "block";
+  }, 320);
+});
+document.getElementById("artistInput").addEventListener("blur", () => setTimeout(hideSug, 150));
+
+function addArtistChip(pic) {
+  if (typeof pic !== "string") pic = "";   // may be called as an event handler
+  hideSug();
   const input = document.getElementById("artistInput");
   const val = input.value.trim();
   if (val && !seedArtists.has(val)) {
@@ -1342,15 +1401,14 @@ function addArtistChip() {
       updateStart();
     };
     artistChips.appendChild(el);
-    // Try to show the artist's photo on the chip (best-effort)
-    searchArtist(val).then(a => {
-      const pic = a && (a.picture_medium || a.picture || a.picture_small);
-      if (pic && seedArtists.has(val)) {
-        el._lead = '<img class="chip-av" src="' + pic + '" alt="" />';
-        el.classList.add("has-av");
-        renderChip(el, val, seedArtists.get(val), el._lead, true);
-      }
-    }).catch(() => {});
+    const setAv = p => {
+      if (!p || !seedArtists.has(val)) return;
+      el._lead = '<img class="chip-av" src="' + p + '" alt="" />';
+      el.classList.add("has-av");
+      renderChip(el, val, seedArtists.get(val), el._lead, true);
+    };
+    if (pic) setAv(pic);   // tapped a suggestion — its photo rides along (works on every provider)
+    else searchArtist(val).then(a => setAv(a && (a.picture_medium || a.picture || a.picture_small))).catch(() => {});
   }
   input.value = ""; updateStart();
 }
@@ -1946,8 +2004,21 @@ const SVC_ICONS = {
   sp: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>',
   ap: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.994 6.124a9.23 9.23 0 00-.24-2.19c-.317-1.31-1.062-2.31-2.18-3.043a5.022 5.022 0 00-1.877-.726 10.496 10.496 0 00-1.564-.15c-.04-.003-.083-.01-.124-.013H5.986c-.152.01-.303.017-.455.026-.747.043-1.49.123-2.193.4-1.336.53-2.3 1.452-2.865 2.78-.192.448-.292.925-.363 1.408-.056.392-.088.785-.1 1.18 0 .032-.007.062-.01.093v12.223c.01.14.017.283.027.424.05.815.154 1.624.497 2.373.65 1.42 1.738 2.353 3.234 2.801.42.127.856.187 1.293.228.555.053 1.11.06 1.667.06h11.03a12.5 12.5 0 001.57-.1c.822-.106 1.596-.35 2.295-.81a5.046 5.046 0 001.88-2.207c.186-.42.293-.87.37-1.324.113-.675.138-1.358.137-2.04-.002-3.8 0-7.595-.003-11.393zm-6.423 3.99v5.712c0 .417-.058.827-.244 1.206-.29.59-.76.962-1.388 1.14-.35.1-.706.157-1.07.173-.95.045-1.773-.6-1.943-1.536a1.88 1.88 0 011.038-2.022c.323-.16.67-.25 1.018-.324.378-.082.758-.153 1.134-.24.274-.063.457-.23.51-.516a.904.904 0 00.02-.193c0-1.815 0-3.63-.002-5.443a.725.725 0 00-.026-.185c-.04-.15-.15-.243-.304-.234-.16.01-.318.035-.475.066-.76.15-1.52.303-2.28.456l-2.325.47-1.374.278c-.016.003-.032.01-.048.013-.277.077-.377.203-.39.49-.002.042 0 .086 0 .13-.002 2.602 0 5.204-.003 7.805 0 .42-.047.836-.215 1.227-.278.64-.77 1.04-1.434 1.233-.35.1-.71.16-1.075.172-.96.036-1.755-.6-1.92-1.544-.14-.812.23-1.685 1.154-2.075.357-.15.73-.232 1.108-.31.287-.06.575-.116.86-.177.383-.083.583-.323.6-.714v-.15c0-2.96 0-5.922.002-8.882 0-.123.013-.25.042-.37.07-.285.273-.448.546-.518.255-.066.515-.112.774-.165.733-.15 1.466-.296 2.2-.444l2.27-.46c.67-.134 1.34-.27 2.01-.403.22-.043.442-.088.663-.106.31-.025.523.17.554.482.008.073.012.148.012.223.002 1.91.002 3.822 0 5.732z"/></svg>',
   yt: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>',
-  sc: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.999 14.165c-.052 1.796-1.612 3.169-3.4 3.169h-8.18a.68.68 0 0 1-.675-.683V7.862a.747.747 0 0 1 .452-.724s.75-.513 2.333-.513a5.364 5.364 0 0 1 2.763.755 5.433 5.433 0 0 1 2.57 3.54c.282-.08.574-.121.868-.12.884 0 1.73.358 2.347.992s.948 1.49.922 2.373ZM10.721 8.421c.247 2.98.427 5.697 0 8.672a.264.264 0 0 1-.53 0c-.395-2.946-.22-5.718 0-8.672a.264.264 0 0 1 .53 0ZM9.072 9.448c.285 2.659.37 4.986-.006 7.655a.277.277 0 0 1-.55 0c-.331-2.63-.256-5.02 0-7.655a.277.277 0 0 1 .556 0Zm-1.663-.257c.27 2.726.39 5.171 0 7.904a.266.266 0 0 1-.532 0c-.38-2.69-.257-5.21 0-7.904a.266.266 0 0 1 .532 0Zm-1.647.77a26.108 26.108 0 0 1-.008 7.147.272.272 0 0 1-.542 0 27.955 27.955 0 0 1 0-7.147.275.275 0 0 1 .55 0Zm-1.67 1.769c.421 1.865.228 3.5-.029 5.388a.257.257 0 0 1-.514 0c-.21-1.858-.398-3.549 0-5.389a.272.272 0 0 1 .543 0Zm-1.655-.273c.388 1.897.26 3.508-.01 5.412-.026.28-.514.283-.54 0-.244-1.878-.347-3.54-.01-5.412a.283.283 0 0 1 .56 0Zm-1.668.911c.4 1.268.257 2.292-.026 3.572a.257.257 0 0 1-.514 0c-.241-1.262-.354-2.312-.023-3.572a.283.283 0 0 1 .563 0Z"/></svg>'
+  sh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>'
 };
+
+// Share a Find anywhere (iMessage, WhatsApp, whatever the phone offers). The link is
+// the exact Apple Music page when we can verify it (plays a preview for anyone) and
+// a YouTube search otherwise — the one target every recipient can open for free.
+async function shareFind(t) {
+  let exact = t.appleUrl || "";
+  if (!exact) { try { exact = await appleTrackUrl(t); if (exact) { t.appleUrl = exact; save(); } } catch (_) {} }
+  const url = exact || ("https://www.youtube.com/results?search_query=" + encodeURIComponent(t.artist + " " + t.title));
+  const text = "“" + t.title + "” by " + t.artist + " — found with Sift 🎧";
+  if (navigator.share) { try { await navigator.share({ text: text, url: url }); } catch (_) {} return; }
+  try { await navigator.clipboard.writeText(text + "\n" + url); toast("Copied — paste it anywhere"); }
+  catch (_) { toast("Couldn't copy the link"); }
+}
 
 // Discovery scorecard: of everything Sift played, how much was new to you (you didn't tap "Heard it").
 function updateDiscStat() {
@@ -2013,7 +2084,6 @@ function updateFinds() {
     const sp = "https://open.spotify.com/search/" + q;
     const ap = t.appleUrl || ("https://music.apple.com/us/search?term=" + q); // exact song once resolved
     const yt = "https://www.youtube.com/results?search_query=" + q;   // regular YouTube — has remixes/edits
-    const sc = "https://soundcloud.com/search?q=" + q;                 // SoundCloud — remix/edit home
     row.innerHTML = '<img src="' + (t.cover || "") + '" alt="" />' +
       '<div class="fmeta"><div class="n">' + esc(t.title) + '</div><div class="a">' + esc(t.artist) + '</div></div>' +
       '<button class="mini"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.4c0-.8.9-1.3 1.6-.9l9 6.6c.6.4.6 1.4 0 1.8l-9 6.6c-.7.4-1.6-.1-1.6-.9z"/></svg></button>' +
@@ -2022,8 +2092,9 @@ function updateFinds() {
         '<a class="sp" href="' + sp + '" target="_blank" rel="noopener" title="Open in Spotify" aria-label="Spotify">' + SVC_ICONS.sp + '</a>' +
         '<a class="ap" href="' + ap + '" target="_blank" rel="noopener" title="Open in Apple Music" aria-label="Apple Music">' + SVC_ICONS.ap + '</a>' +
         '<a class="yt" href="' + yt + '" target="_blank" rel="noopener" title="Search on YouTube" aria-label="YouTube">' + SVC_ICONS.yt + '</a>' +
-        '<a class="sc" href="' + sc + '" target="_blank" rel="noopener" title="Search on SoundCloud" aria-label="SoundCloud">' + SVC_ICONS.sc + '</a>' +
+        '<button class="sh" title="Share this song" aria-label="Share">' + SVC_ICONS.sh + '</button>' +
       '</div>';
+    row.querySelector(".sh").onclick = () => shareFind(t);
     row.querySelector(".mini").onclick = async () => {
       if (radioOn) {                                 // radio running → jump it to this song
         const i = radioList.findIndex(x => x.id === t.id);
