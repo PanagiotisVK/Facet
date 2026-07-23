@@ -804,11 +804,11 @@ const LB_ALG = "session_based_days_7500_session_300_contribution_5_threshold_10_
 const MBID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const lbArtist = {};   // mbid -> { name, users, appleId }
 const lbNames = {};    // nameKey(name) -> mbid   (skips MusicBrainz entirely on repeat lookups)
-try { const c = JSON.parse(localStorage.getItem("sift_lb_cache") || "{}"); Object.assign(lbArtist, c.a || {}); Object.assign(lbNames, c.n || {}); } catch (_) {}
+try { const c = JSON.parse(localStorage.getItem("sift_lb_cache2") || "{}"); Object.assign(lbArtist, c.a || {}); Object.assign(lbNames, c.n || {}); } catch (_) {}
 let lbSaveT = null;
 function lbCacheSave() {
   clearTimeout(lbSaveT);
-  lbSaveT = setTimeout(() => { try { localStorage.setItem("sift_lb_cache", JSON.stringify({ a: lbArtist, n: lbNames })); } catch (_) {} }, 1500);
+  lbSaveT = setTimeout(() => { try { localStorage.setItem("sift_lb_cache2", JSON.stringify({ a: lbArtist, n: lbNames })); } catch (_) {} }, 1500);
 }
 // MusicBrainz allows 1 request/second — every MB call goes through this spaced chain.
 let mbChain = Promise.resolve();
@@ -848,10 +848,17 @@ async function appleArtistId(mbid) {  // MBID -> Apple artist id, via a verified
   if (m.appleId !== undefined) return m.appleId;
   if (!m.name) { const d = await mbApi("artist/" + mbid, { fmt: "json" }); m.name = (d && d.name) || null; }
   if (!m.name) { m.appleId = null; return null; }
-  const s = await itunesApi("search", { term: m.name, entity: "musicArtist", limit: 5 });
+  // Only a VERIFIED name match counts — taking Apple's first result for an unmatched
+  // niche artist used to hand back some unrelated famous act, whose hits then leaked
+  // into the deck. Niche artists missing from the artist index are found via their songs.
   const want = nameKey(m.name);
-  const list = (s && s.results) || [];
-  const hit = list.find(r => nameKey(r.artistName) === want) || list[0];
+  const match = r => { const got = nameKey(r.artistName); return got && (got === want || got.includes(want) || want.includes(got)); };
+  const s = await itunesApi("search", { term: m.name, entity: "musicArtist", limit: 5 });
+  let hit = ((s && s.results) || []).find(match);
+  if (!hit) {
+    const s2 = await itunesApi("search", { term: m.name, entity: "song", limit: 25 });
+    hit = ((s2 && s2.results) || []).find(match);
+  }
   m.appleId = (hit && hit.artistId) || null;
   lbCacheSave();
   return m.appleId;
@@ -901,8 +908,19 @@ const AppleLBProvider = {
   async relatedArtists(id) {
     if (!MBID_RE.test(id || "")) return [];
     const d = await lbApi("https://labs.api.listenbrainz.org/similar-artists/json?artist_mbids=" + encodeURIComponent(id) + "&algorithm=" + LB_ALG);
-    const top = (Array.isArray(d) ? d : []).slice(0, 8);
-    return Promise.all(top.map(async r => {
+    const all = Array.isArray(d) ? d : [];
+    // The list is ranked by co-listening volume, and everyone co-listens with famous
+    // artists — always taking the top 8 (which the engine then explores first-3-first)
+    // made every neighborhood mainstream. Sample 8 from the top 30, similarity-weighted:
+    // strong matches still dominate, but mid-list artists actually get their turn.
+    const pool = all.slice(0, 30), picked = [];
+    while (picked.length < 8 && pool.length) {
+      let x = Math.random() * pool.reduce((s, r) => s + (r.score || 1), 0);
+      let idx = pool.length - 1;
+      for (let i = 0; i < pool.length; i++) { x -= (pool[i].score || 1); if (x <= 0) { idx = i; break; } }
+      picked.push(pool.splice(idx, 1)[0]);
+    }
+    return Promise.all(picked.map(async r => {
       (lbArtist[r.artist_mbid] = lbArtist[r.artist_mbid] || {}).name = r.name;
       return { id: r.artist_mbid, name: r.name, nb_fan: await lbListeners(r.artist_mbid) };
     }));
