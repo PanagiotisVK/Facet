@@ -51,6 +51,12 @@
   .brand .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
   .brand .logo { height: 30px; width: auto; display: block; filter: drop-shadow(0 2px 6px rgba(0,0,0,.4)); }
   .brand small { color: var(--muted); font-weight: 600; font-size: 10px; letter-spacing: 1px; }
+  /* Immersive Discover: the header stops owning a row and floats over the card art,
+     so the artwork runs to the very top of the screen. Only #btnTune stays tappable —
+     the brand is decoration there. */
+  #app.imm header { position: absolute; top: 0; left: 0; right: 0; background: transparent; border-bottom: 0; pointer-events: none; z-index: 30; }
+  #app.imm .brand > div { text-shadow: 0 2px 10px rgba(0,0,0,.7); }
+  #app.imm .topbtn { pointer-events: auto; color: var(--text); background: rgba(18,18,21,.62); border: 1px solid var(--glass-brd); border-radius: 50%; padding: 8px; box-shadow: var(--shadow-1); }
   .badge { display: inline-block; min-width: 18px; text-align: center; background: var(--accent); color: #0b0b0d; border-radius: 10px; font-size: 11px; padding: 1px 6px; margin-left: 5px; }
   .badge.alert { background: var(--danger); color: #fff; font-weight: 600; box-shadow: 0 0 0 3px rgba(239,91,107,.18); }
   .follow-shelf { margin: 4px 0 16px; }
@@ -106,6 +112,10 @@
   /* Discover */
   #discover { padding: 4px 18px 14px; }
   .deck { flex: 1; min-height: 0; position: relative; margin: 6px 0 2px; }
+  /* With the header floating, the card claims its former row */
+  #app.imm #discover { padding-top: 0; }
+  #app.imm .deck { margin-top: 0; }
+  #app.imm .undo-btn, #app.imm .daily-pill { top: calc(env(safe-area-inset-top) + 54px); }
   .card { position: absolute; inset: 0; border-radius: var(--r-lg); overflow: hidden; background: var(--card); box-shadow: var(--shadow-2); display: flex; flex-direction: column; user-select: none; touch-action: none; will-change: transform; z-index: 2; }
   /* Peek of the next card behind the current one — gives the deck real depth */
   .card.ghost { z-index: 1; transform: scale(.93) translateY(14px); filter: brightness(.55); pointer-events: none; }
@@ -116,6 +126,8 @@
   .daily-pill:active { transform: scale(.94); }
   .card .art { flex: 1; background-size: cover; background-position: center; position: relative; }
   .card .art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(12,11,18,.96) 6%, rgba(12,11,18,.25) 42%, rgba(12,11,18,0) 62%); }
+  /* Top scrim keeps the floating brand/Tune/Undo legible over bright artwork */
+  .card .art::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 130px; background: linear-gradient(to bottom, rgba(12,11,18,.58), rgba(12,11,18,0)); }
   .card .meta { position: absolute; left: 0; right: 0; bottom: 0; padding: 20px 22px; z-index: 2; }
   .card .reason { display: inline-block; font-size: 11px; letter-spacing: .2px; color: var(--text); font-weight: 600; margin-bottom: 8px; background: rgba(255,255,255,.13); padding: 5px 11px; border-radius: 999px; }
   .card .title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 3px; }
@@ -164,11 +176,17 @@
   .playbtn { flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--accent); color: #0b0b0d; font-size: 15px; cursor: pointer; display: grid; place-items: center; transition: transform .1s; }
   .playbtn:active { transform: scale(.9); }
   .time { flex-shrink: 0; font-size: 11px; color: var(--muted); min-width: 40px; text-align: right; letter-spacing: .3px; }
-  /* Draggable seek bar — scrub to any part of the 30s preview */
-  .seek { position: relative; flex: 1; height: 22px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
-  .seek-track { position: absolute; left: 0; right: 0; height: 5px; border-radius: 3px; background: rgba(255,255,255,.12); }
-  .seek-fill { position: absolute; left: 0; height: 5px; border-radius: 3px; background: var(--accent); width: 0%; }
-  .seek-knob { position: absolute; left: 0; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.5); transform: translateX(-50%); }
+  /* Waveform scrubber — same rounded-bar language as the Sift mark. The bars trace
+     the preview's REAL loudness once analyzeHot decodes it; until then a per-song
+     placeholder shape stands in. Still fully draggable. */
+  .seek { position: relative; flex: 1; height: 30px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
+  .wave { position: absolute; inset: 0; display: flex; align-items: center; gap: 2px; }
+  .wave i { flex: 1; min-width: 2px; height: 26%; border-radius: 2px; background: rgba(255,255,255,.16); transform-origin: center; transition: height .25s ease; }
+  .wave i.on { background: var(--accent); }
+  .player.live .wave i.cur { animation: wavepulse .8s ease-in-out infinite; }
+  @keyframes wavepulse { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.4); } }
+  @media (prefers-reduced-motion: reduce) { .player.live .wave i.cur { animation: none; } .wave i { transition: none; } }
+  .seek-knob { position: absolute; left: 0; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.5); transform: translateX(-50%); }
 
   .loading, .empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--muted); text-align:center; padding: 0 30px; }
   .spinner { width: 44px; height: 44px; border-radius: 50%; border: 4px solid #26262b; border-top-color: var(--accent); animation: spin 1s linear infinite; }
@@ -457,7 +475,7 @@
       <div class="dock">
         <div class="player">
           <button class="playbtn" id="btnPlay" aria-label="Play or pause"></button>
-          <div class="seek" id="seek"><div class="seek-track"></div><div class="seek-fill" id="seekFill"></div><div class="seek-knob" id="seekKnob"></div></div>
+          <div class="seek" id="seek"><div class="wave" id="wave"></div><div class="seek-knob" id="seekKnob"></div></div>
           <div class="time" id="timeLabel">0:00</div>
         </div>
         <div class="controls">
@@ -773,6 +791,7 @@ const audio = new Audio();
 audio.preload = "auto";
 let audioToken = 0;                 // guards against stale seeks when cards change fast
 const hotStarts = {};               // trackId -> seconds to jump to ("best part")
+const waveShapes = {};              // trackId -> real loudness envelope for the scrubber (0..1 per bar)
 const hotPending = new Set();
 let _audioCtx = null;
 function getCtx() { if (!_audioCtx) { try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } return _audioCtx; }
@@ -1494,6 +1513,8 @@ startBtn.onclick = async () => {
 
 /* ---------- Screens + bottom nav ---------- */
 function showScreen(name) {
+  // Discover goes immersive: header floats over the art instead of owning a row
+  document.getElementById("app").classList.toggle("imm", name === "discover");
   document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === name));
   document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.screen === name));
   if (name === "finds") updateFinds(); // refresh buckets + kick off genre lookups
@@ -1615,15 +1636,39 @@ function esc(s) { return (s || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<":
 /* ---------- Audio + "best part" detection ---------- */
 function safePlay() { const p = audio.play(); if (p && p.catch) p.catch(() => {}); }
 
-// Draggable seek bar — scrub to any part of the 30s preview yourself.
+// Draggable waveform scrubber — scrub to any part of the 30s preview yourself.
 const seekEl = document.getElementById("seek");
-const seekFill = document.getElementById("seekFill");
 const seekKnob = document.getElementById("seekKnob");
+const waveEl = document.getElementById("wave");
+const WAVE_N = 40;
+if (waveEl) for (let i = 0; i < WAVE_N; i++) waveEl.appendChild(document.createElement("i"));
+const waveBars = waveEl ? Array.from(waveEl.children) : [];
+// Stable per-song placeholder shape (seeded by track id) shown until the real
+// envelope is decoded — so the bar never visibly "pops" from flat to wavy twice.
+function waveFallback(id) {
+  let h = 2166136261 >>> 0; const s = String(id);
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  const out = [];
+  for (let i = 0; i < WAVE_N; i++) { h = (Math.imul(h, 1103515245) + 12345) >>> 0; out.push(0.2 + (h / 4294967296) * 0.65); }
+  for (let p = 0; p < 2; p++) for (let i = 1; i < WAVE_N - 1; i++) out[i] = (out[i - 1] + out[i] * 2 + out[i + 1]) / 4;
+  return out;
+}
+function renderWave(track) {
+  const shape = track ? (waveShapes[track.id] || waveFallback(track.id)) : null;
+  waveBars.forEach((b, i) => {
+    b.style.height = (shape ? 14 + shape[i] * 86 : 26) + "%";
+    b.classList.remove("on", "cur");
+  });
+}
 let scrubbing = false;
 function updateSeekUI(frac) {
-  const pct = Math.max(0, Math.min(1, frac || 0)) * 100;
-  if (seekFill) seekFill.style.width = pct + "%";
-  if (seekKnob) seekKnob.style.left = pct + "%";
+  frac = Math.max(0, Math.min(1, frac || 0));
+  if (seekKnob) seekKnob.style.left = frac * 100 + "%";
+  const cut = frac * WAVE_N, curIdx = Math.min(WAVE_N - 1, Math.floor(cut));
+  waveBars.forEach((b, i) => {
+    b.classList.toggle("on", i < cut);
+    b.classList.toggle("cur", frac > 0 && i === curIdx);
+  });
 }
 function seekToClientX(x) {
   const r = seekEl.getBoundingClientRect();
@@ -1652,13 +1697,18 @@ function updatePlayIcon() { const b = document.getElementById("btnPlay"); if (b)
 updatePlayIcon();
 audio.addEventListener("play", updatePlayIcon);
 audio.addEventListener("pause", updatePlayIcon);
+// The playhead bar only pulses while sound is actually coming out
+const playerEl = document.querySelector(".player");
+function updateLive() { if (playerEl) playerEl.classList.toggle("live", !audio.paused); }
+audio.addEventListener("play", updateLive);
+audio.addEventListener("pause", updateLive);
 document.getElementById("btnPlay").onclick = () => { if (audio.paused) safePlay(); else audio.pause(); };
 
 // Analyze a 30s preview's energy → return the start time (sec) of its most
 // energetic sustained moment (usually the hook/drop/chorus). Cross-origin fetch
 // works because Deezer's CDN sends Access-Control-Allow-Origin: *. Fails soft.
 async function analyzeHot(url) {
-  const ctx = getCtx(); if (!ctx) return 0;
+  const ctx = getCtx(); if (!ctx) return null;
   const resp = await fetch(url);
   const arr = await resp.arrayBuffer();
   const buf = await ctx.decodeAudioData(arr);
@@ -1669,13 +1719,22 @@ function findHotStart(buf) {
   const sr = buf.sampleRate, dur = buf.duration;
   const fs = Math.floor(sr * 0.25);                 // 0.25s analysis frames
   const frames = Math.floor(data.length / fs);
-  if (frames < 4) return 0;
+  if (frames < 4) return { sec: 0, shape: null };
   const energy = new Float32Array(frames);
   for (let i = 0; i < frames; i++) {
     let s = 0; const off = i * fs;
     for (let j = 0; j < fs; j += 8) { const v = data[off + j]; s += v * v; } // sample every 8th for speed
     energy[i] = Math.sqrt(s / (fs / 8));
   }
+  // Downsample the envelope into scrubber bars (soft-normalized so quiet songs still read)
+  const shape = [];
+  let peak = 0;
+  for (let i = 0; i < WAVE_N; i++) {
+    const a = Math.floor(i * frames / WAVE_N), b = Math.max(a + 1, Math.floor((i + 1) * frames / WAVE_N));
+    let s = 0; for (let k = a; k < b; k++) s += energy[k];
+    shape.push(s / (b - a)); peak = Math.max(peak, shape[i]);
+  }
+  for (let i = 0; i < WAVE_N; i++) shape[i] = peak > 0 ? Math.pow(shape[i] / peak, 0.7) : 0.4;
   const win = 8;                                    // smooth over ~2s to favour sustained energy
   const sm = new Float32Array(frames);
   for (let i = 0; i < frames; i++) {
@@ -1687,15 +1746,22 @@ function findHotStart(buf) {
   let best = 0, bestVal = -1;
   for (let i = 0; i < Math.min(frames, limit); i++) { if (sm[i] > bestVal) { bestVal = sm[i]; best = i; } }
   let t = best * 0.25 - 1.5;                         // ease in just before the peak
-  if (t < 1.5) return 0;                             // hot part is basically the start → don't jump
-  if (t > dur - 10) t = Math.max(0, dur - 10); // leave ~10s of runway before the clip ends
-  return t;
+  if (t < 1.5) t = 0;                                // hot part is basically the start → don't jump
+  else if (t > dur - 10) t = Math.max(0, dur - 10); // leave ~10s of runway before the clip ends
+  return { sec: t, shape: shape };
 }
 function ensureHot(track) {
   if (!track || hotStarts[track.id] !== undefined || hotPending.has(track.id)) return Promise.resolve();
   hotPending.add(track.id);
   return analyzeHot(track.preview)
-    .then(sec => { hotStarts[track.id] = sec || 0; })
+    .then(r => {
+      hotStarts[track.id] = (r && r.sec) || 0;
+      if (r && r.shape) {
+        waveShapes[track.id] = r.shape;
+        // If this song is on the card right now, morph the placeholder into the real wave
+        if (state.current && state.current.id === track.id) renderWave(track);
+      }
+    })
     .catch(() => { hotStarts[track.id] = 0; })       // CORS/decoding failed → just play from start
     .finally(() => hotPending.delete(track.id));
 }
@@ -1707,6 +1773,7 @@ function playTrack(track) {
   audio.loop = true;                                // keep the preview looping so it never dies mid-listen
   audio.src = track.preview;
   try { audio.currentTime = 0; } catch (_) {}
+  renderWave(track);
   updateSeekUI(0);
   const applyHot = () => {
     if (token !== audioToken) return;               // a newer card took over
