@@ -148,7 +148,9 @@
     70%  { opacity: 1; transform: scale(1.02) translateY(0); }
     100% { opacity: 0; transform: scale(1.05) translateY(-14px); }
   }
-  .besttag { position: absolute; top: 14px; left: 14px; z-index: 4; background: rgba(244,244,245,.92); color: #0b0b0d; font-weight: 600; font-size: 11px; letter-spacing: .4px; padding: 5px 11px; border-radius: 999px; opacity: 0; transform: translateY(-8px); transition: opacity .35s, transform .35s; }
+  /* Lives in the meta chip row (next to the reason pill) — the old top-left spot
+     sits under the floating Sift logo now */
+  .besttag { display: inline-block; margin-left: 6px; margin-bottom: 8px; background: rgba(244,244,245,.92); color: #0b0b0d; font-weight: 600; font-size: 11px; letter-spacing: .4px; padding: 5px 11px; border-radius: 999px; opacity: 0; transform: translateY(4px); transition: opacity .35s, transform .35s; }
   .besttag.show { opacity: 1; transform: translateY(0); }
 
   .controls { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 2px 0 0; }
@@ -1592,11 +1594,11 @@ function renderCard(track) {
   card.innerHTML =
     '<div class="progress" id="prog"></div>' +
     '<div class="tint"></div>' +
-    '<div class="besttag">🔥 best part</div>' +
     '<div class="stamp love"></div><div class="stamp nope"></div><div class="stamp heard"></div>' +
     '<div class="art" style="background-image:url(\'' + (track.cover || "") + '\')"></div>' +
     '<div class="meta">' + (track.nbFan != null && track.nbFan < (PROVIDER.freshFanCap || 40000) ? '<span class="freshtag">✦ Fresh Find</span>' : '') +
     '<span class="reason">' + esc(track.reason || "Discovery") + '</span>' +
+    '<span class="besttag">🔥 best part</span>' +
     '<h2 class="title">' + esc(track.title) + '</h2>' +
     '<p class="artist">' + esc(track.artist) + '<span class="artist-go">›</span></p></div>';
   deck.appendChild(card);
