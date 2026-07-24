@@ -1,4 +1,5 @@
 import UIKit
+import AVFAudio
 import Capacitor
 
 @UIApplicationMain
@@ -7,7 +8,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Music app: previews must play even when the ringer/silent switch is on,
+        // like every other music app. (.playback ignores the mute switch; the session
+        // activates itself when audio actually starts, so we don't interrupt other
+        // apps' music at launch.)
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
         return true
     }
 

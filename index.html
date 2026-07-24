@@ -37,7 +37,10 @@
     -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; letter-spacing: -0.01em;
     background: radial-gradient(1200px 800px at 50% -10%, #17171b 0%, var(--bg) 55%), var(--bg);
     color: var(--text); overflow: hidden;
+    /* App, not a document: iOS long-press must never text-select the UI (waveform bars etc.) */
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   }
+  input, textarea { -webkit-user-select: text; user-select: text; }
   h1, h2 { letter-spacing: -0.02em; }
   #app { max-width: 480px; margin: 0 auto; height: 100vh; height: 100dvh; display: flex; flex-direction: column; position: relative; z-index: 1; }
   /* Blurred album-art backdrop — the whole screen breathes with the current song */
@@ -2395,7 +2398,14 @@ function markPlayingRow() {
 }
 // Keep row highlights + play/pause icons honest whatever pauses or resumes the audio
 audio.addEventListener("play", markPlayingRow);
+audio.addEventListener("playing", markPlayingRow);
 audio.addEventListener("pause", markPlayingRow);
+// A preview that fails to load must not leave a frozen "playing" row behind
+audio.addEventListener("error", () => {
+  if (!audio.src) return;
+  if (radioOn) { radioPlay(radioIdx + 1); return; }        // radio: skip the dead track
+  if (findsPlayingId != null) { findsPlayingId = null; markPlayingRow(); toast("Couldn't load that preview"); }
+});
 async function radioPlay(i) {
   if (i < 0 || i >= radioList.length) { radioStop(); return; }
   radioIdx = i;
