@@ -338,6 +338,9 @@
   .dm-intro-t { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 700; font-size: 24px; margin-top: 16px; }
   .dm-intro-s { color: var(--muted); font-size: 14px; margin-top: 8px; line-height: 1.5; }
   .dm-intro-note { color: var(--muted); font-size: 12px; margin-top: 16px; }
+  /* Quiet escape under the primary CTA — text link, not a competing button */
+  .dm-intro-skip { background: transparent; border: 0; color: var(--muted); font-size: 13px; font-weight: 600; margin-top: 14px; cursor: pointer; padding: 6px 10px; }
+  .dm-intro-skip:active { color: var(--text); }
   .dm-progress { display: flex; gap: 4px; padding: 10px 18px 0; }
   .dm-progress .seg { flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,.15); transition: background .3s; }
   .dm-progress .seg.done { background: var(--accent); }
@@ -631,8 +634,8 @@
         <div class="dm-intro-t" id="dmIntroTitle">A deck for you</div>
         <div class="dm-intro-s" id="dmIntroSub">swipe right on the ones you love</div>
         <button class="btn-primary" id="dmStart" style="max-width:280px;margin-top:22px;">Start swiping</button>
+        <button class="dm-intro-skip" id="dmIntroBack" style="display:none;">Maybe later</button>
         <div class="dm-intro-note" id="dmIntroNote">The songs you love get sent back to them</div>
-        <button class="btn-mini ghost" id="dmIntroBack" style="display:none;margin-top:14px;">Maybe later</button>
       </div>
       <!-- swipe view -->
       <div id="dmSwipe" style="display:none;flex-direction:column;flex:1;min-height:0;">
